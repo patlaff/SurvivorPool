@@ -1,0 +1,201 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from './client'
+
+export interface League {
+  id: number
+  name: string
+  slug: string
+  season_id: number
+  season_number: number
+  owner: { id: number; display_name: string; avatar_url: string }
+  member_count: number
+  draft_lock_date: string | null
+  draft_open: boolean
+  draft_close_at: string | null
+  draft_force_open: boolean
+  created_at: string
+  invite_code?: string
+  members?: { user: { id: number; display_name: string; avatar_url: string }; joined_at: string }[]
+}
+
+export interface Castaway {
+  castaway_id: string
+  name: string
+  age: number | null
+  hometown: string
+  occupation: string
+  is_eliminated: boolean
+  eliminated_episode: number | null
+}
+
+export interface EpisodeScore {
+  episode_number: number
+  air_date: string
+  raw_points: number
+  multiplier: string
+  final_points: number
+}
+
+export interface LeaderboardEntry {
+  rank: number
+  user: { id: number; display_name: string; avatar_url: string }
+  total_points: number
+  episodes: EpisodeScore[]
+}
+
+export interface LeaderboardResponse {
+  entries: LeaderboardEntry[]
+  last_scored_at: string | null
+}
+
+export interface RosterSlot {
+  slot_number: number
+  castaway: Castaway
+  added_at: string
+  events: { castaway_name: string; event_name: string; points: number }[]
+}
+
+export interface Perk {
+  perk_type: 'swap' | 'boost'
+  used: boolean
+  used_at: string | null
+  boost_target_episode: number | null
+  swapped_out_castaway: Castaway | null
+  swapped_in_castaway: Castaway | null
+}
+
+export interface Roster {
+  id: number
+  user: { id: number; display_name: string; avatar_url: string }
+  slots: RosterSlot[]
+  perks: Perk[]
+  total_points: number
+}
+
+export function useMyLeagues() {
+  return useQuery<League[]>({ queryKey: ['leagues'], queryFn: () => api.get('/leagues/').then(r => r.data) })
+}
+
+export function useLeague(slug: string) {
+  return useQuery<League>({ queryKey: ['league', slug], queryFn: () => api.get(`/leagues/${slug}/`).then(r => r.data) })
+}
+
+export function useLeaderboard(slug: string) {
+  return useQuery<LeaderboardResponse>({
+    queryKey: ['leaderboard', slug],
+    queryFn: () => api.get(`/leagues/${slug}/leaderboard/`).then(r => r.data),
+    refetchInterval: 1000 * 60 * 5,
+  })
+}
+
+export function useAvailableCastaways(slug: string) {
+  return useQuery<Castaway[]>({
+    queryKey: ['available-castaways', slug],
+    queryFn: () => api.get(`/leagues/${slug}/available-castaways/`).then(r => r.data),
+  })
+}
+
+export function useSeasonCastaways(seasonNumber: number) {
+  return useQuery<Castaway[]>({
+    queryKey: ['season-castaways', seasonNumber],
+    queryFn: () => api.get(`/seasons/${seasonNumber}/castaways/`).then(r => r.data),
+  })
+}
+
+export interface SeasonEpisode {
+  episode_number: number
+  air_date: string
+  scored_at: string | null
+  is_merge: boolean
+  is_finale: boolean
+}
+
+export function useSeasonEpisodes(seasonNumber: number) {
+  return useQuery<SeasonEpisode[]>({
+    queryKey: ['season-episodes', seasonNumber],
+    queryFn: () => api.get(`/seasons/${seasonNumber}/episodes/`).then(r => r.data),
+    enabled: seasonNumber > 0,
+  })
+}
+
+export function useDraft(slug: string) {
+  return useQuery<{ draft_open: boolean; lock_date: string | null; picks: string[] }>({
+    queryKey: ['draft', slug],
+    queryFn: () => api.get(`/leagues/${slug}/draft/`).then(r => r.data),
+  })
+}
+
+export function useMyRoster(slug: string) {
+  return useQuery<Roster>({ queryKey: ['roster', slug, 'me'], queryFn: () => api.get(`/leagues/${slug}/roster/`).then(r => r.data) })
+}
+
+export function useMemberRoster(slug: string, userId: number) {
+  return useQuery<Roster>({ queryKey: ['roster', slug, userId], queryFn: () => api.get(`/leagues/${slug}/roster/${userId}/`).then(r => r.data) })
+}
+
+export function useMyScores(slug: string) {
+  return useQuery<EpisodeScore[]>({ queryKey: ['scores', slug], queryFn: () => api.get(`/leagues/${slug}/scores/`).then(r => r.data) })
+}
+
+export function useCreateLeague() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => api.post('/leagues/', { name }).then(r => r.data as League),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['leagues'] }),
+  })
+}
+
+export function useJoinLeague() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ invite_code }: { invite_code: string }) =>
+      api.post('/leagues/join/', { invite_code }).then(r => r.data as { detail: string; slug: string }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['leagues'] }),
+  })
+}
+
+export function useSaveDraft(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (castaway_ids: string[]) => api.put(`/leagues/${slug}/draft/`, { castaway_ids }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['draft', slug] })
+      qc.invalidateQueries({ queryKey: ['available-castaways', slug] })
+    },
+  })
+}
+
+export function useSwapPerk(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ out_id, in_id }: { out_id: string; in_id: string }) =>
+      api.post(`/leagues/${slug}/roster/swap/`, { out_id, in_id }).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['roster', slug, 'me'] }),
+  })
+}
+
+export function useBoostPerk(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (episode_number: number) =>
+      api.post(`/leagues/${slug}/roster/boost/`, { episode_number }).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['roster', slug, 'me'] }),
+  })
+}
+
+export interface DraftWindowPayload {
+  draft_close_at?: string | null
+  draft_force_open?: boolean
+}
+
+export function useDraftWindow(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: DraftWindowPayload) =>
+      api.patch(`/leagues/${slug}/draft-window/`, payload).then(r => r.data as League),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['league', slug] })
+      qc.invalidateQueries({ queryKey: ['draft', slug] })
+    },
+  })
+}

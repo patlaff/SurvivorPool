@@ -1,0 +1,30 @@
+schema: spec-driven
+
+context: |
+  Project: SurvivorPool — Survivor fantasy game web app
+  Domain: Players draft 5 Survivor castaways per season, earn points automatically after each episode, compete in private leagues with a leaderboard.
+
+  Tech stack:
+    Backend: Django 5 + Django REST Framework + SimpleJWT
+    Auth: Google OAuth 2.0 (ID token exchange via `google-auth` library; no passwords)
+    Task queue: Celery + Redis
+    Database: PostgreSQL 16
+    Frontend: React 18 + Vite + TypeScript + Tailwind CSS + TanStack Query + Recharts
+    Google Sign-In: @react-oauth/google
+    Data source: survivoR2py GitHub repo (CSV over raw URLs, US seasons only)
+    Deployment: Docker Compose
+
+  Key conventions:
+    - All survivoR2py data filtered to version=="US" at the data_loader level
+    - Point values live in scoring_config.json (file-based, version-controlled)
+    - Episode.scored_at is the idempotency guard for the scoring pipeline
+    - Season.draft_lock_date is auto-set to Episode 2 air_date by the sync task
+    - Draft picks lock league-wide at draft_lock_date; perks (Swap, Boost) usable after lock
+    - Castaway exclusivity enforced per-league (one owner per castaway per league)
+    - ACTIVE_SEASON env var controls which season the pipeline targets
+
+rules:
+  tasks:
+    - Each task should be self-contained and implementable in one sitting
+    - Include file paths for every new file to be created
+    - Call out test cases explicitly within each task

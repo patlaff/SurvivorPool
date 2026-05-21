@@ -1,0 +1,8 @@
+name: survivor-fantasy-web-app
+description: Full-stack Survivor fantasy game with automated scoring, draft, perks, leagues, and leaderboard
+created: 2026-05-20
+status: proposed
+artifacts:
+  - proposal
+  - design
+  - tasks

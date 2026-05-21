@@ -1,0 +1,33 @@
+from django.urls import path
+from .views import (
+    AvailableCastawaysView,
+    BoostPerkView,
+    DraftView,
+    DraftWindowView,
+    EpisodeScoresView,
+    LeaderboardView,
+    LeagueDetailView,
+    LeagueJoinByCodeView,
+    LeagueJoinView,
+    LeagueListCreateView,
+    MyScoresView,
+    RosterView,
+    SwapPerkView,
+)
+
+urlpatterns = [
+    path('leagues/', LeagueListCreateView.as_view(), name='league-list'),
+    path('leagues/join/', LeagueJoinByCodeView.as_view(), name='league-join-by-code'),
+    path('leagues/<slug:slug>/', LeagueDetailView.as_view(), name='league-detail'),
+    path('leagues/<slug:slug>/join/', LeagueJoinView.as_view(), name='league-join'),
+    path('leagues/<slug:slug>/available-castaways/', AvailableCastawaysView.as_view(), name='available-castaways'),
+    path('leagues/<slug:slug>/draft/', DraftView.as_view(), name='draft'),
+    path('leagues/<slug:slug>/draft-window/', DraftWindowView.as_view(), name='draft-window'),
+    path('leagues/<slug:slug>/roster/', RosterView.as_view(), name='roster-mine'),
+    path('leagues/<slug:slug>/roster/<int:user_id>/', RosterView.as_view(), name='roster-member'),
+    path('leagues/<slug:slug>/roster/swap/', SwapPerkView.as_view(), name='roster-swap'),
+    path('leagues/<slug:slug>/roster/boost/', BoostPerkView.as_view(), name='roster-boost'),
+    path('leagues/<slug:slug>/leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
+    path('leagues/<slug:slug>/scores/', MyScoresView.as_view(), name='my-scores'),
+    path('leagues/<slug:slug>/scores/<int:episode_number>/', EpisodeScoresView.as_view(), name='episode-scores'),
+]

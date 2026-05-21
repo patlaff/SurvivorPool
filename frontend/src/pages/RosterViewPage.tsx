@@ -1,0 +1,45 @@
+import { useParams } from 'react-router-dom'
+import { useMemberRoster } from '../api/leagues'
+
+export default function RosterViewPage() {
+  const { slug, userId } = useParams<{ slug: string; userId: string }>()
+  const { data: roster, isLoading } = useMemberRoster(slug!, parseInt(userId!))
+
+  if (isLoading) return <div className="text-gray-400 py-8 text-center">Loading…</div>
+  if (!roster) return <div className="text-gray-400 py-8 text-center">Roster not found.</div>
+
+  return (
+    <div className="max-w-2xl">
+      <div className="flex items-center gap-3 mb-6">
+        {roster.user.avatar_url && (
+          <img src={roster.user.avatar_url} className="w-10 h-10 rounded-full" alt="" />
+        )}
+        <div>
+          <h1 className="text-2xl font-bold">{roster.user.display_name}'s Roster</h1>
+          <p className="text-sm text-gray-500">{roster.total_points} pts total</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        {roster.slots.map(slot => (
+          <div key={slot.slot_number} className="card">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold">{slot.castaway.name}</span>
+              {slot.castaway.is_eliminated && (
+                <span className="text-xs text-red-500">Eliminated Ep {slot.castaway.eliminated_episode}</span>
+              )}
+            </div>
+            {slot.castaway.occupation && <p className="text-xs text-gray-400 mt-0.5">{slot.castaway.occupation}</p>}
+            <div className="mt-1 flex flex-wrap gap-1">
+              {slot.events.map((ev, i) => (
+                <span key={i} className="text-xs bg-gray-100 rounded px-2 py-0.5">
+                  {ev.event_name.replace(/_/g, ' ')} +{ev.points}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
