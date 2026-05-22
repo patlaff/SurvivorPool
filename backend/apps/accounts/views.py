@@ -4,7 +4,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.throttling import AnonRateThrottle
-from rest_framework_simplejwt.tokens import RefreshToken
+from apps.accounts.tokens import SurvivorPoolRefreshToken
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
@@ -65,7 +65,7 @@ class GoogleLoginView(APIView):
         if changed:
             user.save(update_fields=['display_name', 'avatar_url'])
 
-        refresh = RefreshToken.for_user(user)
+        refresh = SurvivorPoolRefreshToken.for_user(user)
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),

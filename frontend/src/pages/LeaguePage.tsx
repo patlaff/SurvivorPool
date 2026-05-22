@@ -1,10 +1,51 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { useLeague, useLeaderboard, useDraftWindow, type DraftWindowPayload } from '../api/leagues'
+import { useLeague, useLeaderboard, useDraftWindow, useLeagueActivity, type DraftWindowPayload, type ActivityEvent } from '../api/leagues'
 import { useAuth } from '../hooks/useAuth'
 
 const COLORS = ['#E8521A', '#F0A500', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
+
+function activityIcon(type: ActivityEvent['type']) {
+  if (type === 'draft_saved') return '🗳'
+  if (type === 'swap_used') return '🔄'
+  return '⚡'
+}
+
+function activityDetail(event: ActivityEvent): string {
+  if (event.type === 'draft_saved') {
+    const castaways = (event.detail.castaways as string[] | undefined) ?? []
+    return `Saved picks: ${castaways.join(', ')}`
+  }
+  if (event.type === 'swap_used') {
+    return `Swapped out ${event.detail.dropped ?? '?'} → added ${event.detail.added ?? '?'}`
+  }
+  return `Doubled points for Ep ${event.detail.episode ?? '?'}`
+}
+
+function ActivityLogTab({ events, isLoading }: { events: ActivityEvent[] | undefined; isLoading: boolean }) {
+  if (isLoading) return <p className="text-gray-400 py-8 text-center">Loading activity…</p>
+  if (!events || events.length === 0) return <p className="text-gray-400 py-8 text-center">No activity yet in this league.</p>
+  return (
+    <div className="space-y-3">
+      {events.map((event, idx) => (
+        <div key={idx} className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50">
+          <span className="text-xl mt-0.5">{activityIcon(event.type)}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              {event.user.avatar_url && (
+                <img src={event.user.avatar_url} className="w-5 h-5 rounded-full" alt="" />
+              )}
+              <span className="font-medium text-sm">{event.user.display_name}</span>
+              <span className="text-xs text-gray-400">{new Date(event.timestamp).toLocaleString()}</span>
+            </div>
+            <p className="text-sm text-gray-600 mt-0.5">{activityDetail(event)}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function formatLastUpdated(isoString: string): string {
   const diff = Date.now() - new Date(isoString).getTime()
@@ -19,14 +60,15 @@ function formatLastUpdated(isoString: string): string {
 export default function LeaguePage() {
   const { slug } = useParams<{ slug: string }>()
   const { user } = useAuth()
-  const { data: league } = useLeague(slug!)
+  const { data: league } = useLeague(slug!, user?.id)
   const { data: leaderboardData, isLoading } = useLeaderboard(slug!)
-  const [tab, setTab] = useState<'leaderboard' | 'chart'>('leaderboard')
+  const [tab, setTab] = useState<'leaderboard' | 'chart' | 'activity'>('leaderboard')
   const draftWindowMutation = useDraftWindow(slug!)
   const [scheduleInput, setScheduleInput] = useState('')
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const isOwner = user?.id === league?.owner?.id
+  const { data: activityData, isLoading: activityLoading } = useLeagueActivity(slug!, isOwner)
 
   const handleDraftWindowAction = async (payload: DraftWindowPayload) => {
     try {
@@ -41,6 +83,14 @@ export default function LeaguePage() {
 
   const leaderboard = leaderboardData?.entries
   const lastScoredAt = leaderboardData?.last_scored_at ?? null
+  // When draft is open, other players' episode arrays are empty ([]).
+  // Derive column headers from the current user's own entry (always full),
+  // falling back to any non-hidden entry, then the first entry.
+  const episodeColumns =
+    leaderboard?.find(e => e.user.id === user?.id)?.episodes ??
+    leaderboard?.find(e => !e.roster_hidden)?.episodes ??
+    leaderboard?.[0]?.episodes ??
+    []
 
   const isStale = lastScoredAt
     ? Date.now() - new Date(lastScoredAt).getTime() > 8 * 24 * 3600 * 1000
@@ -161,15 +211,18 @@ export default function LeaguePage() {
       <div className="flex gap-4 mb-4 border-b">
         <button className={`pb-2 text-sm font-medium ${tab === 'leaderboard' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500'}`} onClick={() => setTab('leaderboard')}>Leaderboard</button>
         <button className={`pb-2 text-sm font-medium ${tab === 'chart' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500'}`} onClick={() => setTab('chart')}>Points Chart</button>
+        {isOwner && (
+          <button className={`pb-2 text-sm font-medium ${tab === 'activity' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500'}`} onClick={() => setTab('activity')}>Activity Log</button>
+        )}
       </div>
 
-      {isStale && (
+      {isStale && tab !== 'activity' && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 text-sm text-yellow-800">
           Scores haven't updated in over 8 days. The data source may be lagging.
         </div>
       )}
 
-      {isLoading && <div className="text-gray-400 py-8 text-center">Loading scores…</div>}
+      {isLoading && tab !== 'activity' && <div className="text-gray-400 py-8 text-center">Loading scores…</div>}
 
       {tab === 'leaderboard' && leaderboard && (
         <div className="overflow-x-auto">
@@ -178,7 +231,7 @@ export default function LeaguePage() {
               <tr className="text-left text-gray-500 border-b">
                 <th className="pb-2 pr-4">#</th>
                 <th className="pb-2 pr-4">Player</th>
-                {leaderboard[0]?.episodes.map(ep => (
+                {episodeColumns.map(ep => (
                   <th key={ep.episode_number} className="pb-2 pr-2 text-right">Ep {ep.episode_number}</th>
                 ))}
                 <th className="pb-2 text-right font-semibold">Total</th>
@@ -189,18 +242,35 @@ export default function LeaguePage() {
                 <tr key={entry.user.id} className="border-b hover:bg-gray-50">
                   <td className="py-3 pr-4 font-bold text-gray-400">#{entry.rank}</td>
                   <td className="py-3 pr-4">
-                    <Link to={`/leagues/${slug}/roster/${entry.user.id}`} className="flex items-center gap-2 hover:underline">
-                      {entry.user.avatar_url && <img src={entry.user.avatar_url} className="w-6 h-6 rounded-full" alt="" />}
-                      <span>{entry.user.display_name}</span>
-                    </Link>
+                    {entry.roster_hidden
+                      ? (
+                        <span className="flex items-center gap-2">
+                          {entry.user.avatar_url && <img src={entry.user.avatar_url} className="w-6 h-6 rounded-full" alt="" />}
+                          <span>{entry.user.display_name}</span>
+                          <span className="text-gray-400 text-xs" title="Roster hidden during draft window">🔒</span>
+                        </span>
+                      ) : (
+                        <Link to={`/leagues/${slug}/roster/${entry.user.id}`} className="flex items-center gap-2 hover:underline">
+                          {entry.user.avatar_url && <img src={entry.user.avatar_url} className="w-6 h-6 rounded-full" alt="" />}
+                          <span>{entry.user.display_name}</span>
+                        </Link>
+                      )
+                    }
                   </td>
-                  {entry.episodes.map(ep => (
-                    <td key={ep.episode_number} className="py-3 pr-2 text-right text-gray-600">
-                      {ep.final_points > ep.raw_points && <span title="Boosted" className="text-survivor-gold mr-1">⚡</span>}
-                      {ep.final_points}
-                    </td>
-                  ))}
-                  <td className="py-3 text-right font-bold">{entry.total_points}</td>
+                  {entry.roster_hidden
+                    ? episodeColumns.map(ep => (
+                        <td key={ep.episode_number} className="py-3 pr-2 text-right text-gray-300">—</td>
+                      ))
+                    : entry.episodes.map(ep => (
+                        <td key={ep.episode_number} className="py-3 pr-2 text-right text-gray-600">
+                          {ep.final_points > ep.raw_points && <span title="Boosted" className="text-survivor-gold mr-1">⚡</span>}
+                          {ep.final_points}
+                        </td>
+                      ))
+                  }
+                  <td className="py-3 text-right font-bold">
+                    {entry.roster_hidden ? <span className="text-gray-300">—</span> : entry.total_points}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -224,11 +294,15 @@ export default function LeaguePage() {
         </div>
       )}
 
-      {leaderboard?.length === 0 && (
+      {leaderboard?.length === 0 && tab !== 'activity' && (
         <p className="text-center text-gray-400 py-8">No episodes scored yet.</p>
       )}
 
-      {lastScoredAt && (
+      {tab === 'activity' && isOwner && (
+        <ActivityLogTab events={activityData} isLoading={activityLoading} />
+      )}
+
+      {lastScoredAt && tab !== 'activity' && (
         <p className="mt-4 text-xs text-gray-400 text-right">Last updated {formatLastUpdated(lastScoredAt)}</p>
       )}
     </div>

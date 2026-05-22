@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: survivorpool
       POSTGRES_PASSWORD: survivorpool
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - /data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U survivorpool"]
       interval: 5s
@@ -40,7 +40,7 @@ services:
              python manage.py collectstatic --noinput &&
              gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120"
     volumes:
-      - ./scoring_config.json:/app/scoring_config.json:ro
+      - ./scoring_config.json:/app/scoring_config.json
 
   celery:
     build:
@@ -81,5 +81,3 @@ services:
     depends_on:
       - backend
 
-volumes:
-  postgres_data:

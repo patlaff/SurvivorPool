@@ -1,0 +1,11 @@
+# Local development override — NOT deployed to AWS.
+# Docker Compose merges this automatically when running `docker compose up`.
+# Substitutes the EBS bind mount with a named volume so the path
+# /data/postgres (which only exists on the EC2 instance) is not required locally.
+services:
+  db:
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

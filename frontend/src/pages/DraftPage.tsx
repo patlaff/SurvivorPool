@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { useLeague, useSeasonCastaways, useDraft, useSaveDraft } from '../api/leagues'
+import { useAuth } from '../hooks/useAuth'
 
 function useCountdown(lockDate: string | null) {
   const [remaining, setRemaining] = useState('')
@@ -23,9 +24,10 @@ function useCountdown(lockDate: string | null) {
 
 export default function DraftPage() {
   const { slug } = useParams<{ slug: string }>()
-  const { data: league } = useLeague(slug!)
+  const { user } = useAuth()
+  const { data: league } = useLeague(slug!, user?.id)
   const { data: castaways } = useSeasonCastaways(league?.season_number ?? 0)
-  const { data: draft } = useDraft(slug!)
+  const { data: draft } = useDraft(slug!, user?.id)
   const saveDraft = useSaveDraft(slug!)
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -60,7 +62,9 @@ export default function DraftPage() {
     c.occupation.toLowerCase().includes(filter.toLowerCase())
   ) ?? []
 
-  const draftOpen = draft?.draft_open ?? true
+  // Use league.draft_open as primary signal — it's invalidated/refetched by useDraftWindow
+  // before the owner navigates here.  Fall back to draft.draft_open, then true while loading.
+  const draftOpen = league?.draft_open ?? draft?.draft_open ?? true
 
   return (
     <div>
@@ -90,12 +94,13 @@ export default function DraftPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filtered.map(c => {
           const isSelected = selected.has(c.castaway_id)
+          const isEliminated = c.is_eliminated && !league?.is_test
           return (
             <button
               key={c.castaway_id}
               onClick={() => toggle(c.castaway_id)}
-              disabled={!draftOpen || (selected.size >= 5 && !isSelected)}
-              className={`card text-left transition-all ${isSelected ? 'border-survivor-orange bg-orange-50' : 'hover:border-gray-300'} ${c.is_eliminated ? 'opacity-50' : ''} ${!draftOpen ? 'cursor-default' : ''}`}
+              disabled={!draftOpen || (!isSelected && (isEliminated || selected.size >= 5))}
+              className={`card text-left transition-all ${isSelected ? 'border-survivor-orange bg-orange-50' : 'hover:border-gray-300'} ${isEliminated && !isSelected ? 'opacity-50 cursor-not-allowed' : ''} ${!draftOpen ? 'cursor-default' : ''}`}
             >
               <div className="flex items-start justify-between">
                 <span className="font-semibold">{c.name}</span>

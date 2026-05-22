@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from apps.castaways.models import Castaway, Episode
 from apps.castaways.serializers import CastawaySerializer
 from apps.scoring.models import PlayerEpisodeScore
-from .models import League, Membership, Perk, Roster, RosterSlot
+from .models import DraftSave, League, Membership, Perk, Roster, RosterSlot
 from .permissions import IsLeagueMember, IsLeagueOwner
 from .serializers import (
     EpisodeScoreSerializer,
@@ -106,12 +106,8 @@ class AvailableCastawaysView(APIView):
 
     def get(self, request, slug):
         league = _get_league_for_member(slug, request.user)
-        picked_ids = RosterSlot.objects.filter(
-            roster__league=league
-        ).values_list('castaway_id', flat=True)
-        available = Castaway.objects.filter(
-            season=league.season
-        ).exclude(id__in=picked_ids)
+        # Picks are non-exclusive — all castaways in the season are always available.
+        available = Castaway.objects.filter(season=league.season)
         return Response(CastawaySerializer(available, many=True).data)
 
 
@@ -126,8 +122,16 @@ class DraftView(APIView):
     def get(self, request, slug):
         league = self._league(slug, request.user)
         roster = Roster.objects.filter(league=league, user=request.user).prefetch_related('slots__castaway').first()
-        # Effective lock date: league override takes precedence over season default.
-        lock_date = league.draft_close_at if league.draft_close_at is not None else league.season.draft_lock_date
+        # Effective lock date is only meaningful when there's an actual deadline.
+        # When draft_force_open or is_test is set, return null so the frontend
+        # countdown doesn't show a misleading "Draft closed" against the past
+        # season lock date.
+        if league.is_test or league.draft_force_open:
+            lock_date = None
+        elif league.draft_close_at is not None:
+            lock_date = league.draft_close_at
+        else:
+            lock_date = league.season.draft_lock_date
         picks = []
         if roster:
             picks = [slot.castaway.castaway_id for slot in roster.slots.all()]
@@ -138,8 +142,12 @@ class DraftView(APIView):
         })
 
     def put(self, request, slug):
+        from decimal import Decimal
+        from apps.castaways.models import Episode as EpisodeModel
+        from apps.scoring.models import PlayerEpisodeScore, ScoringEvent
+
         league = self._league(slug, request.user)
-        if not is_draft_open(league):
+        if not league.is_test and not is_draft_open(league):
             return Response(
                 {'detail': 'Draft is closed.'},
                 status=status.HTTP_403_FORBIDDEN,
@@ -155,17 +163,15 @@ class DraftView(APIView):
         if castaways.count() != 5:
             return Response({'detail': 'One or more castaways not found in this season.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check each castaway not already picked by another roster in this league
-        already_taken = RosterSlot.objects.filter(
-            roster__league=league,
-            castaway__castaway_id__in=castaway_ids,
-        ).exclude(roster__user=request.user)
-        if already_taken.exists():
-            taken_names = list(already_taken.values_list('castaway__name', flat=True))
-            return Response(
-                {'detail': f'Already drafted by another player: {", ".join(taken_names)}'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if not league.is_test and not league.draft_force_open:
+            # Block drafting eliminated castaways during a normal draft window.
+            # Bypassed for force-open (owner reopened mid-season) and test leagues.
+            eliminated = [c.name for c in castaways if c.is_eliminated]
+            if eliminated:
+                return Response(
+                    {'detail': f'Cannot draft eliminated castaways: {", ".join(eliminated)}'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         with transaction.atomic():
             roster, _ = Roster.objects.get_or_create(league=league, user=request.user)
@@ -176,6 +182,49 @@ class DraftView(APIView):
             # Create perks if not already present
             for perk_type in (Perk.SWAP, Perk.BOOST):
                 Perk.objects.get_or_create(roster=roster, perk_type=perk_type)
+
+        # Backfill PlayerEpisodeScore for any already-scored episodes so total_points
+        # reflects the new picks immediately (handles the case where scoring ran before
+        # picks were saved).
+        # castaway_ids are string IDs (e.g. "US0477"); ScoringEvent.castaway_id is the
+        # integer FK PK, so we must resolve to PKs first.
+        castaway_pks = list(castaways.values_list('pk', flat=True))
+        scored_episodes = EpisodeModel.objects.filter(
+            season=league.season,
+            scored_at__isnull=False,
+        )
+        roster.refresh_from_db()  # ensure perks are visible
+        for episode in scored_episodes:
+            raw = sum(
+                ScoringEvent.objects.filter(
+                    castaway_id__in=castaway_pks,
+                    episode=episode,
+                ).values_list('points', flat=True)
+            )
+            multiplier = Decimal('1.0')
+            try:
+                roster.perks.get(
+                    perk_type=Perk.BOOST,
+                    used=True,
+                    boost_target_episode=episode.episode_number,
+                )
+                multiplier = Decimal('2.0')
+            except Perk.DoesNotExist:
+                pass
+            PlayerEpisodeScore.objects.update_or_create(
+                roster=roster,
+                episode=episode,
+                defaults={
+                    'raw_points': raw,
+                    'multiplier': multiplier,
+                    'final_points': int(raw * multiplier),
+                },
+            )
+
+        DraftSave.objects.create(
+            roster=roster,
+            castaway_names=[castaway_map[cid].name for cid in castaway_ids],
+        )
 
         return Response({'detail': 'Draft saved.'})
 
@@ -225,6 +274,83 @@ class DraftWindowView(APIView):
         return Response(LeagueDetailSerializer(league).data)
 
 
+# ── League Activity Log ───────────────────────────────────────────────────────
+
+class LeagueActivityView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, slug):
+        league = get_object_or_404(League, slug=slug)
+        if league.owner != request.user:
+            return Response(
+                {'detail': 'Only the league owner can view the activity log.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        events = []
+
+        # Draft saves — hidden while the draft window is open to preserve pick privacy.
+        if not is_draft_open(league):
+            for ds in (
+                DraftSave.objects
+                .filter(roster__league=league)
+                .select_related('roster__user')
+                .order_by('saved_at')
+            ):
+                events.append({
+                    'type': 'draft_saved',
+                    'timestamp': ds.saved_at,
+                    'user': {
+                        'id': ds.roster.user.id,
+                        'display_name': ds.roster.user.display_name,
+                        'avatar_url': ds.roster.user.avatar_url,
+                    },
+                    'detail': {'castaways': ds.castaway_names},
+                })
+
+        # Swap perks
+        for perk in (
+            Perk.objects
+            .filter(roster__league=league, perk_type=Perk.SWAP, used=True)
+            .select_related('roster__user', 'swapped_out_castaway', 'swapped_in_castaway')
+            .order_by('used_at')
+        ):
+            events.append({
+                'type': 'swap_used',
+                'timestamp': perk.used_at,
+                'user': {
+                    'id': perk.roster.user.id,
+                    'display_name': perk.roster.user.display_name,
+                    'avatar_url': perk.roster.user.avatar_url,
+                },
+                'detail': {
+                    'dropped': perk.swapped_out_castaway.name if perk.swapped_out_castaway else None,
+                    'added': perk.swapped_in_castaway.name if perk.swapped_in_castaway else None,
+                },
+            })
+
+        # Boost perks
+        for perk in (
+            Perk.objects
+            .filter(roster__league=league, perk_type=Perk.BOOST, used=True)
+            .select_related('roster__user')
+            .order_by('used_at')
+        ):
+            events.append({
+                'type': 'boost_used',
+                'timestamp': perk.used_at,
+                'user': {
+                    'id': perk.roster.user.id,
+                    'display_name': perk.roster.user.display_name,
+                    'avatar_url': perk.roster.user.avatar_url,
+                },
+                'detail': {'episode': perk.boost_target_episode},
+            })
+
+        events.sort(key=lambda e: e['timestamp'] or '', reverse=True)
+        return Response(events)
+
+
 # ── Roster & Perks ────────────────────────────────────────────────────────────
 
 class RosterView(APIView):
@@ -233,6 +359,12 @@ class RosterView(APIView):
     def get(self, request, slug, user_id=None):
         league = _get_league_for_member(slug, request.user)
         if user_id:
+            # Viewing another member's roster is only allowed once the draft is closed.
+            if is_draft_open(league):
+                return Response(
+                    {'detail': "Other players' rosters are hidden until the draft closes."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             roster = get_object_or_404(Roster, league=league, user_id=user_id)
         else:
             roster = get_object_or_404(Roster, league=league, user=request.user)
@@ -246,22 +378,23 @@ class SwapPerkView(APIView):
         league = _get_league_for_member(slug, request.user)
         roster = get_object_or_404(Roster, league=league, user=request.user)
 
-        # Swap requires the draft to be closed (picks are locked)
-        if is_draft_open(league):
-            return Response(
-                {'detail': 'Swaps are only available after the draft closes.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if not league.is_test:
+            # Swap requires the draft to be closed (picks are locked)
+            if is_draft_open(league):
+                return Response(
+                    {'detail': 'Swaps are only available after the draft closes.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        # Swap window closes when the merge episode airs
-        merge_ep = Episode.objects.filter(
-            season=league.season, is_merge=True
-        ).order_by('episode_number').first()
-        if merge_ep and merge_ep.air_date <= timezone.now().date():
-            return Response(
-                {'detail': 'Swap perk has expired — the tribes have merged.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            # Swap window closes when the merge episode airs
+            merge_ep = Episode.objects.filter(
+                season=league.season, is_merge=True
+            ).order_by('episode_number').first()
+            if merge_ep and merge_ep.air_date <= timezone.now().date():
+                return Response(
+                    {'detail': 'Swap perk has expired — the tribes have merged.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         perk = get_object_or_404(Perk, roster=roster, perk_type=Perk.SWAP)
         if perk.used:
@@ -274,10 +407,6 @@ class SwapPerkView(APIView):
 
         slot = get_object_or_404(RosterSlot, roster=roster, castaway__castaway_id=out_id)
         new_castaway = get_object_or_404(Castaway, castaway_id=in_id, season=league.season)
-
-        taken = RosterSlot.objects.filter(roster__league=league, castaway=new_castaway).exclude(roster=roster)
-        if taken.exists():
-            return Response({'detail': 'That castaway is already on another roster.'}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
             perk.swapped_out_castaway = slot.castaway
@@ -307,10 +436,11 @@ class BoostPerkView(APIView):
             return Response({'detail': 'Provide episode_number.'}, status=status.HTTP_400_BAD_REQUEST)
 
         episode = get_object_or_404(Episode, season=league.season, episode_number=episode_number)
-        if episode.scored_at is not None:
-            return Response({'detail': 'That episode has already been scored.'}, status=status.HTTP_400_BAD_REQUEST)
-        if episode.air_date <= timezone.now().date():
-            return Response({'detail': 'That episode has already aired.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not league.is_test:
+            if episode.scored_at is not None:
+                return Response({'detail': 'That episode has already been scored.'}, status=status.HTTP_400_BAD_REQUEST)
+            if episode.air_date <= timezone.now().date():
+                return Response({'detail': 'That episode has already aired.'}, status=status.HTTP_400_BAD_REQUEST)
         if episode.is_finale:
             return Response({'detail': 'Boost cannot be applied to the finale.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -328,6 +458,7 @@ class LeaderboardView(APIView):
 
     def get(self, request, slug):
         league = _get_league_for_member(slug, request.user)
+        draft_open = is_draft_open(league)
         rosters = Roster.objects.filter(league=league).prefetch_related(
             'user', 'episode_scores__episode'
         )
@@ -352,6 +483,8 @@ class LeaderboardView(APIView):
 
         results = []
         for rank, entry in enumerate(entries, start=1):
+            is_own = entry['user'].id == request.user.id
+            roster_hidden = draft_open and not is_own
             results.append({
                 'rank': rank,
                 'user': {
@@ -361,9 +494,12 @@ class LeaderboardView(APIView):
                     'avatar_url': entry['user'].avatar_url,
                 },
                 'total_points': entry['total_points'],
-                'episodes': EpisodeScoreSerializer(entry['episodes'], many=True).data,
+                # Hide per-episode breakdown for other players while the draft is open
+                # so nobody can infer picks from score patterns.
+                'episodes': EpisodeScoreSerializer(entry['episodes'], many=True).data if not roster_hidden else [],
+                'roster_hidden': roster_hidden,
             })
-        return Response({'entries': results, 'last_scored_at': last_scored})
+        return Response({'entries': results, 'last_scored_at': last_scored, 'draft_open': draft_open})
 
 
 class MyScoresView(generics.ListAPIView):

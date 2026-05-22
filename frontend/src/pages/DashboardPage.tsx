@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMyLeagues, useCreateLeague, useJoinLeague } from '../api/leagues'
+import { useAuth } from '../hooks/useAuth'
 export default function DashboardPage() {
-  const { data: leagues, isLoading } = useMyLeagues()
+  const { user } = useAuth()
+  const { data: leagues, isLoading } = useMyLeagues(user?.id)
   const createLeague = useCreateLeague()
   const joinLeague = useJoinLeague()
 

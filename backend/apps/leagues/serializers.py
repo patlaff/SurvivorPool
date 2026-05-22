@@ -26,7 +26,7 @@ class LeagueSerializer(serializers.ModelSerializer):
         model = League
         fields = ('id', 'name', 'slug', 'season_id', 'season_number', 'owner', 'member_count',
                   'draft_lock_date', 'draft_open', 'draft_close_at', 'draft_force_open',
-                  'created_at')
+                  'is_test', 'created_at')
         read_only_fields = ('slug', 'created_at')
 
     def get_member_count(self, obj):

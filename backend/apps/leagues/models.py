@@ -29,6 +29,12 @@ class League(models.Model):
     invite_code = models.CharField(max_length=8, unique=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Test league flag — bypasses draft dates, elimination, perk windows
+    is_test = models.BooleanField(
+        default=False,
+        help_text='When True, all draft and perk restrictions are relaxed for testing purposes.',
+    )
+
     # Per-league draft window overrides (both null = use season.draft_lock_date default)
     draft_close_at = models.DateTimeField(
         null=True, blank=True,
@@ -90,6 +96,19 @@ class RosterSlot(models.Model):
 
     def __str__(self):
         return f'Slot {self.slot_number}: {self.castaway.name}'
+
+
+class DraftSave(models.Model):
+    """Audit record written each time a user saves their draft picks."""
+    roster = models.ForeignKey(Roster, on_delete=models.CASCADE, related_name='draft_saves')
+    saved_at = models.DateTimeField(auto_now_add=True)
+    castaway_names = models.JSONField(default=list)
+
+    class Meta:
+        ordering = ['saved_at']
+
+    def __str__(self):
+        return f'DraftSave for {self.roster} at {self.saved_at}'
 
 
 class Perk(models.Model):

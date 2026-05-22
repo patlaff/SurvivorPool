@@ -3,9 +3,24 @@ import { useMemberRoster } from '../api/leagues'
 
 export default function RosterViewPage() {
   const { slug, userId } = useParams<{ slug: string; userId: string }>()
-  const { data: roster, isLoading } = useMemberRoster(slug!, parseInt(userId!))
+  const { data: roster, isLoading, isError, error } = useMemberRoster(slug!, parseInt(userId!))
 
   if (isLoading) return <div className="text-gray-400 py-8 text-center">Loading…</div>
+
+  if (isError) {
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? ''
+    if (detail.toLowerCase().includes('hidden')) {
+      return (
+        <div className="card text-center py-12 text-gray-500">
+          <p className="text-xl">🔒</p>
+          <p className="text-lg font-medium mt-2">Rosters are hidden during the draft window.</p>
+          <p className="text-sm mt-1 text-gray-400">Check back once the draft closes.</p>
+        </div>
+      )
+    }
+    return <div className="text-gray-400 py-8 text-center">Roster not found.</div>
+  }
+
   if (!roster) return <div className="text-gray-400 py-8 text-center">Roster not found.</div>
 
   return (

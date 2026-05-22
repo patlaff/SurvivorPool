@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useLeague, useMyRoster, useAvailableCastaways, useSwapPerk, useBoostPerk, useSeasonEpisodes } from '../api/leagues'
+import { useAuth } from '../hooks/useAuth'
 
 export default function RosterPage() {
   const { slug } = useParams<{ slug: string }>()
-  const { data: league } = useLeague(slug!)
-  const { data: roster } = useMyRoster(slug!)
+  const { user } = useAuth()
+  const { data: league } = useLeague(slug!, user?.id)
+  const { data: roster } = useMyRoster(slug!, user?.id)
   const { data: available } = useAvailableCastaways(slug!)
   const { data: episodes } = useSeasonEpisodes(league?.season_number ?? 0)
   const swapPerk = useSwapPerk(slug!)

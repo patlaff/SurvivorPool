@@ -19,6 +19,14 @@ export function Layout() {
           </Link>
           {user && (
             <div className="flex items-center gap-4">
+              <Link to="/info" className="text-sm text-gray-300 hover:text-white transition-colors">
+                How to Play
+              </Link>
+              {user.is_superadmin && (
+                <Link to="/admin" className="text-xs font-semibold text-survivor-orange border border-survivor-orange rounded px-2 py-0.5 hover:bg-survivor-orange hover:text-white transition-colors">
+                  Admin
+                </Link>
+              )}
               {user.avatar_url && (
                 <img
                   src={user.avatar_url}

@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'apps.castaways',
     'apps.leagues',
     'apps.scoring',
+    'apps.admin_panel',
 ]
 
 MIDDLEWARE = [
@@ -128,4 +129,6 @@ CELERY_ENABLE_UTC = True
 
 ACTIVE_SEASON = int(os.environ.get('ACTIVE_SEASON', 50))
 
-SCORING_CONFIG_PATH = BASE_DIR.parent / 'scoring_config.json'
+SCORING_CONFIG_PATH = BASE_DIR / 'scoring_config.json'
+
+SUPERADMIN_EMAILS = os.environ.get('SUPERADMIN_EMAILS', 'patlaff728@gmail.com').split(',')

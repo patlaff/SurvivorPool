@@ -23,7 +23,7 @@
   "individual_reward": 10,
   "picked_for_reward": 10,
   "medical_medevac": 20,
-  "eliminated": 0,
+  "eliminated": -15,
   "make_jury": 10,
   "advance_a_week": 15,
   "survive_tribal": 15,

@@ -1,0 +1,16 @@
+# Copy this file to terraform.tfvars and fill in the required values.
+# terraform.tfvars is gitignored and must never be committed.
+
+# Required — name of an existing EC2 key pair in your AWS account
+key_name = "my-key-pair"
+
+# Required — your public IP in CIDR notation (restricts SSH to you only)
+# Find yours: curl -s https://checkip.amazonaws.com
+admin_cidr = "YOUR.IP.HERE/32"
+
+# Optional overrides (uncomment to change)
+# aws_region            = "us-east-1"
+# app_name              = "survivorpool"
+# instance_type         = "t3.small"
+# data_volume_size      = 20
+# backup_retention_days = 30

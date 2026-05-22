@@ -13,6 +13,7 @@ export interface League {
   draft_open: boolean
   draft_close_at: string | null
   draft_force_open: boolean
+  is_test: boolean
   created_at: string
   invite_code?: string
   members?: { user: { id: number; display_name: string; avatar_url: string }; joined_at: string }[]
@@ -41,11 +42,15 @@ export interface LeaderboardEntry {
   user: { id: number; display_name: string; avatar_url: string }
   total_points: number
   episodes: EpisodeScore[]
+  /** True when the draft is open and this entry belongs to another player. */
+  roster_hidden: boolean
 }
 
 export interface LeaderboardResponse {
   entries: LeaderboardEntry[]
   last_scored_at: string | null
+  /** Whether the draft window is currently open for this league. */
+  draft_open: boolean
 }
 
 export interface RosterSlot {
@@ -72,12 +77,23 @@ export interface Roster {
   total_points: number
 }
 
-export function useMyLeagues() {
-  return useQuery<League[]>({ queryKey: ['leagues'], queryFn: () => api.get('/leagues/').then(r => r.data) })
+export function useMyLeagues(userId?: number) {
+  return useQuery<League[]>({
+    queryKey: ['leagues', userId],
+    queryFn: () => api.get('/leagues/').then(r => r.data),
+    enabled: !!userId,
+  })
 }
 
-export function useLeague(slug: string) {
-  return useQuery<League>({ queryKey: ['league', slug], queryFn: () => api.get(`/leagues/${slug}/`).then(r => r.data) })
+export function useLeague(slug: string, userId?: number) {
+  return useQuery<League>({
+    queryKey: ['league', slug, userId],
+    queryFn: () => api.get(`/leagues/${slug}/`).then(r => r.data),
+    enabled: !!userId,
+    // Poll every 30 s so draft-open state and other league settings propagate
+    // to all members without requiring a manual page refresh.
+    refetchInterval: 30_000,
+  })
 }
 
 export function useLeaderboard(slug: string) {
@@ -118,15 +134,24 @@ export function useSeasonEpisodes(seasonNumber: number) {
   })
 }
 
-export function useDraft(slug: string) {
+export function useDraft(slug: string, userId?: number) {
   return useQuery<{ draft_open: boolean; lock_date: string | null; picks: string[] }>({
-    queryKey: ['draft', slug],
+    queryKey: ['draft', slug, userId],
     queryFn: () => api.get(`/leagues/${slug}/draft/`).then(r => r.data),
+    enabled: !!userId,
+    // Poll every 30 s so the draft-open state stays in sync across users
+    // (e.g. when the league owner reopens the draft while another member has
+    // the page open).
+    refetchInterval: 30_000,
   })
 }
 
-export function useMyRoster(slug: string) {
-  return useQuery<Roster>({ queryKey: ['roster', slug, 'me'], queryFn: () => api.get(`/leagues/${slug}/roster/`).then(r => r.data) })
+export function useMyRoster(slug: string, userId?: number) {
+  return useQuery<Roster>({
+    queryKey: ['roster', slug, 'me', userId],
+    queryFn: () => api.get(`/leagues/${slug}/roster/`).then(r => r.data),
+    enabled: !!userId,
+  })
 }
 
 export function useMemberRoster(slug: string, userId: number) {
@@ -161,6 +186,9 @@ export function useSaveDraft(slug: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['draft', slug] })
       qc.invalidateQueries({ queryKey: ['available-castaways', slug] })
+      // Invalidate roster so total_points reflects newly-computed episode scores
+      qc.invalidateQueries({ queryKey: ['roster', slug] })
+      qc.invalidateQueries({ queryKey: ['leaderboard', slug] })
     },
   })
 }
@@ -197,5 +225,20 @@ export function useDraftWindow(slug: string) {
       qc.invalidateQueries({ queryKey: ['league', slug] })
       qc.invalidateQueries({ queryKey: ['draft', slug] })
     },
+  })
+}
+
+export interface ActivityEvent {
+  type: 'draft_saved' | 'swap_used' | 'boost_used'
+  timestamp: string
+  user: { id: number; display_name: string; avatar_url: string }
+  detail: Record<string, unknown>
+}
+
+export function useLeagueActivity(slug: string, enabled: boolean) {
+  return useQuery<ActivityEvent[]>({
+    queryKey: ['league-activity', slug],
+    queryFn: () => api.get(`/leagues/${slug}/activity/`).then(r => r.data),
+    enabled,
   })
 }

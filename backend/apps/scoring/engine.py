@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def _load_config() -> dict[str, int]:
-    path = Path(getattr(settings, 'SCORING_CONFIG_PATH', settings.BASE_DIR.parent / 'scoring_config.json'))
+    path = Path(getattr(settings, 'SCORING_CONFIG_PATH', settings.BASE_DIR / 'scoring_config.json'))
     with open(path) as f:
         return json.load(f)
 
