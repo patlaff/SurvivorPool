@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { useLeague, useLeaderboard, useDraftWindow, useLeagueActivity, type DraftWindowPayload, type ActivityEvent } from '../api/leagues'
+import { useLeague, useLeaderboard, useDraftWindow, useLeagueActivity, usePicksGrid, type DraftWindowPayload, type ActivityEvent, type PicksGridResponse } from '../api/leagues'
 import { useAuth } from '../hooks/useAuth'
 
 const COLORS = ['#E8521A', '#F0A500', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
@@ -21,6 +21,75 @@ function activityDetail(event: ActivityEvent): string {
     return `Swapped out ${event.detail.dropped ?? '?'} → added ${event.detail.added ?? '?'}`
   }
   return `Doubled points for Ep ${event.detail.episode ?? '?'}`
+}
+
+function PicksGridTab({ data, isLoading }: { data: PicksGridResponse | undefined; isLoading: boolean }) {
+  if (isLoading) return <p className="text-gray-400 py-8 text-center">Loading picks…</p>
+  if (!data) return null
+
+  if (data.draft_open) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
+        Picks are hidden until the draft window closes.
+      </div>
+    )
+  }
+
+  const { players, castaways } = data
+  const draftedPlayers = players.filter(p => p.has_drafted)
+
+  if (draftedPlayers.length === 0) {
+    return <p className="text-gray-400 py-8 text-center">No picks saved yet.</p>
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="text-sm border-collapse">
+        <thead>
+          <tr className="text-left border-b">
+            <th className="pb-2 pr-4 font-semibold text-gray-700 whitespace-nowrap">Castaway</th>
+            {draftedPlayers.map(p => (
+              <th key={p.user.id} className="pb-2 px-3 text-center font-medium text-gray-600 whitespace-nowrap">
+                <div className="flex flex-col items-center gap-1">
+                  {p.user.avatar_url && (
+                    <img src={p.user.avatar_url} className="w-6 h-6 rounded-full" alt="" />
+                  )}
+                  <span>{p.user.display_name}</span>
+                </div>
+              </th>
+            ))}
+            <th className="pb-2 pl-4 text-center font-semibold text-gray-700 whitespace-nowrap">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {castaways.map(castaway => (
+            <tr key={castaway.castaway_id} className="border-b hover:bg-gray-50">
+              <td className="py-2 pr-4 whitespace-nowrap">
+                <span className={castaway.is_eliminated ? 'line-through text-gray-400' : 'text-gray-800'}>
+                  {castaway.name}
+                </span>
+                {castaway.is_eliminated && castaway.eliminated_episode != null && (
+                  <span className="ml-1 text-xs text-gray-400">(Ep {castaway.eliminated_episode})</span>
+                )}
+              </td>
+              {draftedPlayers.map(p => (
+                <td key={p.user.id} className="py-2 px-3 text-center">
+                  {p.picks.includes(castaway.castaway_id) ? (
+                    <span className="inline-block w-5 h-5 rounded-full bg-survivor-orange text-white text-xs leading-5 font-bold">✓</span>
+                  ) : (
+                    <span className="text-gray-200">·</span>
+                  )}
+                </td>
+              ))}
+              <td className="py-2 pl-4 text-center font-semibold text-gray-700">
+                {castaway.pick_count > 0 ? castaway.pick_count : <span className="text-gray-300">0</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 function ActivityLogTab({ events, isLoading }: { events: ActivityEvent[] | undefined; isLoading: boolean }) {
@@ -62,13 +131,14 @@ export default function LeaguePage() {
   const { user } = useAuth()
   const { data: league } = useLeague(slug!, user?.id)
   const { data: leaderboardData, isLoading } = useLeaderboard(slug!)
-  const [tab, setTab] = useState<'leaderboard' | 'chart' | 'activity'>('leaderboard')
+  const [tab, setTab] = useState<'leaderboard' | 'chart' | 'picks' | 'activity'>('leaderboard')
   const draftWindowMutation = useDraftWindow(slug!)
   const [scheduleInput, setScheduleInput] = useState('')
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const isOwner = user?.id === league?.owner?.id
   const { data: activityData, isLoading: activityLoading } = useLeagueActivity(slug!, isOwner)
+  const { data: picksGridData, isLoading: picksGridLoading } = usePicksGrid(slug!)
 
   const handleDraftWindowAction = async (payload: DraftWindowPayload) => {
     try {
@@ -211,18 +281,19 @@ export default function LeaguePage() {
       <div className="flex gap-4 mb-4 border-b">
         <button className={`pb-2 text-sm font-medium ${tab === 'leaderboard' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500'}`} onClick={() => setTab('leaderboard')}>Leaderboard</button>
         <button className={`pb-2 text-sm font-medium ${tab === 'chart' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500'}`} onClick={() => setTab('chart')}>Points Chart</button>
+        <button className={`pb-2 text-sm font-medium ${tab === 'picks' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500'}`} onClick={() => setTab('picks')}>Picks Grid</button>
         {isOwner && (
           <button className={`pb-2 text-sm font-medium ${tab === 'activity' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500'}`} onClick={() => setTab('activity')}>Activity Log</button>
         )}
       </div>
 
-      {isStale && tab !== 'activity' && (
+      {isStale && tab !== 'activity' && tab !== 'picks' && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 text-sm text-yellow-800">
           Scores haven't updated in over 8 days. The data source may be lagging.
         </div>
       )}
 
-      {isLoading && tab !== 'activity' && <div className="text-gray-400 py-8 text-center">Loading scores…</div>}
+      {isLoading && tab !== 'activity' && tab !== 'picks' && <div className="text-gray-400 py-8 text-center">Loading scores…</div>}
 
       {tab === 'leaderboard' && leaderboard && (
         <div className="overflow-x-auto">
@@ -294,15 +365,19 @@ export default function LeaguePage() {
         </div>
       )}
 
-      {leaderboard?.length === 0 && tab !== 'activity' && (
+      {leaderboard?.length === 0 && tab !== 'activity' && tab !== 'picks' && (
         <p className="text-center text-gray-400 py-8">No episodes scored yet.</p>
+      )}
+
+      {tab === 'picks' && (
+        <PicksGridTab data={picksGridData} isLoading={picksGridLoading} />
       )}
 
       {tab === 'activity' && isOwner && (
         <ActivityLogTab events={activityData} isLoading={activityLoading} />
       )}
 
-      {lastScoredAt && tab !== 'activity' && (
+      {lastScoredAt && tab !== 'activity' && tab !== 'picks' && (
         <p className="mt-4 text-xs text-gray-400 text-right">Last updated {formatLastUpdated(lastScoredAt)}</p>
       )}
     </div>

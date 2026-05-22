@@ -502,6 +502,95 @@ class LeaderboardView(APIView):
         return Response({'entries': results, 'last_scored_at': last_scored, 'draft_open': draft_open})
 
 
+class PicksGridView(APIView):
+    """
+    GET /leagues/<slug>/picks-grid/
+
+    Returns all season castaways with per-castaway pick counts and the players
+    who picked each one.  While the draft window is open, other players' picks
+    are hidden (only the requesting user's own picks are visible), matching the
+    same privacy model used by the leaderboard.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, slug):
+        league = _get_league_for_member(slug, request.user)
+        draft_open = is_draft_open(league)
+
+        castaways = list(
+            Castaway.objects.filter(season=league.season).order_by('name')
+        )
+        castaway_index = {c.castaway_id: i for i, c in enumerate(castaways)}
+
+        rosters = (
+            Roster.objects.filter(league=league)
+            .select_related('user')
+            .prefetch_related('slots__castaway')
+        )
+
+        # Track how many players picked each castaway (by list-index position).
+        pick_counts = [0] * len(castaways)
+        players_data = []
+
+        for roster in rosters:
+            slot_ids = [slot.castaway.castaway_id for slot in roster.slots.all()]
+            is_own = roster.user.id == request.user.id
+            visible = not draft_open or is_own
+
+            players_data.append({
+                'user': {
+                    'id': roster.user.id,
+                    'display_name': roster.user.display_name,
+                    'avatar_url': roster.user.avatar_url,
+                },
+                'picks': slot_ids if visible else [],
+                'has_drafted': bool(slot_ids),
+            })
+
+            if visible:
+                for cid in slot_ids:
+                    idx = castaway_index.get(cid)
+                    if idx is not None:
+                        pick_counts[idx] += 1
+
+        # Members who have joined but not yet saved a draft.
+        drafted_user_ids = {r.user.id for r in rosters}
+        undrafted = (
+            Membership.objects.filter(league=league)
+            .select_related('user')
+            .exclude(user_id__in=drafted_user_ids)
+        )
+        for membership in undrafted:
+            players_data.append({
+                'user': {
+                    'id': membership.user.id,
+                    'display_name': membership.user.display_name,
+                    'avatar_url': membership.user.avatar_url,
+                },
+                'picks': [],
+                'has_drafted': False,
+            })
+
+        castaway_list = [
+            {
+                'castaway_id': c.castaway_id,
+                'name': c.name,
+                'is_eliminated': c.is_eliminated,
+                'eliminated_episode': c.eliminated_episode,
+                'pick_count': pick_counts[i],
+            }
+            for i, c in enumerate(castaways)
+        ]
+        # Sort by pick count descending, then name ascending.
+        castaway_list.sort(key=lambda c: (-c['pick_count'], c['name']))
+
+        return Response({
+            'draft_open': draft_open,
+            'players': players_data,
+            'castaways': castaway_list,
+        })
+
+
 class MyScoresView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = EpisodeScoreSerializer

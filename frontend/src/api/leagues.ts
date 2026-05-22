@@ -229,6 +229,34 @@ export function useDraftWindow(slug: string) {
   })
 }
 
+export interface PicksGridCastaway {
+  castaway_id: string
+  name: string
+  is_eliminated: boolean
+  eliminated_episode: number | null
+  pick_count: number
+}
+
+export interface PicksGridPlayer {
+  user: { id: number; display_name: string; avatar_url: string }
+  picks: string[]
+  has_drafted: boolean
+}
+
+export interface PicksGridResponse {
+  draft_open: boolean
+  players: PicksGridPlayer[]
+  castaways: PicksGridCastaway[]
+}
+
+export function usePicksGrid(slug: string) {
+  return useQuery<PicksGridResponse>({
+    queryKey: ['picks-grid', slug],
+    queryFn: () => api.get(`/leagues/${slug}/picks-grid/`).then(r => r.data),
+    refetchInterval: 1000 * 60 * 5,
+  })
+}
+
 export interface ActivityEvent {
   type: 'draft_saved' | 'swap_used' | 'boost_used'
   timestamp: string
