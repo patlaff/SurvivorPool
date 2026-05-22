@@ -37,20 +37,27 @@ export default function RosterViewPage() {
 
       <div className="grid gap-3">
         {roster.slots.map(slot => (
-          <div key={slot.slot_number} className="card">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold">{slot.castaway.name}</span>
-              {slot.castaway.is_eliminated && (
-                <span className="text-xs text-red-500">Eliminated Ep {slot.castaway.eliminated_episode}</span>
-              )}
-            </div>
-            {slot.castaway.occupation && <p className="text-xs text-gray-400 mt-0.5">{slot.castaway.occupation}</p>}
-            <div className="mt-1 flex flex-wrap gap-1">
-              {slot.events.map((ev, i) => (
-                <span key={i} className="text-xs bg-gray-100 rounded px-2 py-0.5">
-                  {ev.event_name.replace(/_/g, ' ')} +{ev.points}
-                </span>
-              ))}
+          <div key={slot.slot_number} className="card flex items-center gap-3">
+            {slot.castaway.image_url ? (
+              <img src={slot.castaway.image_url} alt={slot.castaway.name} className="w-12 h-12 rounded-full object-cover object-top flex-shrink-0" />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0" />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">{slot.castaway.name}</span>
+                {slot.castaway.is_eliminated && (
+                  <span className="text-xs text-red-500">Eliminated Ep {slot.castaway.eliminated_episode}</span>
+                )}
+              </div>
+              {slot.castaway.occupation && <p className="text-xs text-gray-400 mt-0.5">{slot.castaway.occupation}</p>}
+              <div className="mt-1 flex flex-wrap gap-1">
+                {slot.events.map((ev, i) => (
+                  <span key={i} className="text-xs bg-gray-100 rounded px-2 py-0.5">
+                    {ev.event_name.replace(/_/g, ' ')} +{ev.points}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         ))}

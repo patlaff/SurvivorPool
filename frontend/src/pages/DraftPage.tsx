@@ -102,13 +102,22 @@ export default function DraftPage() {
               disabled={!draftOpen || (!isSelected && (isEliminated || selected.size >= 5))}
               className={`card text-left transition-all ${isSelected ? 'border-survivor-orange bg-orange-50' : 'hover:border-gray-300'} ${isEliminated && !isSelected ? 'opacity-50 cursor-not-allowed' : ''} ${!draftOpen ? 'cursor-default' : ''}`}
             >
-              <div className="flex items-start justify-between">
-                <span className="font-semibold">{c.name}</span>
-                {isSelected && <span className="text-survivor-orange text-lg">✓</span>}
+              <div className="flex items-start gap-3">
+                {c.image_url ? (
+                  <img src={c.image_url} alt={c.name} className="w-14 h-14 rounded-full object-cover flex-shrink-0 object-top" />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400 text-xl">?</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-1">
+                    <span className="font-semibold leading-tight">{c.name}</span>
+                    {isSelected && <span className="text-survivor-orange text-lg flex-shrink-0">✓</span>}
+                  </div>
+                  {c.age && <p className="text-xs text-gray-500 mt-0.5">Age {c.age}{c.hometown ? ` · ${c.hometown}` : ''}</p>}
+                  {c.occupation && <p className="text-xs text-gray-400">{c.occupation}</p>}
+                  {c.is_eliminated && <span className="text-xs text-red-500 mt-1 block">Eliminated Ep {c.eliminated_episode}</span>}
+                </div>
               </div>
-              {c.age && <p className="text-xs text-gray-500 mt-1">Age {c.age}{c.hometown ? ` · ${c.hometown}` : ''}</p>}
-              {c.occupation && <p className="text-xs text-gray-400">{c.occupation}</p>}
-              {c.is_eliminated && <span className="text-xs text-red-500 mt-1 block">Eliminated Ep {c.eliminated_episode}</span>}
             </button>
           )
         })}

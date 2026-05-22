@@ -25,6 +25,7 @@ export interface Castaway {
   age: number | null
   hometown: string
   occupation: string
+  image_url: string
   is_eliminated: boolean
   eliminated_episode: number | null
 }
