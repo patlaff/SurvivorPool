@@ -3,7 +3,7 @@ import time
 from django.core.management.base import BaseCommand
 
 from apps.castaways.models import Castaway
-from apps.scoring.wiki_images import fetch_fandom_image
+from apps.castaways.wiki_images import fetch_fandom_image
 
 
 class Command(BaseCommand):

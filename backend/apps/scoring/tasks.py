@@ -96,7 +96,7 @@ def _sync_season(season_number: int) -> None:
         )
 
         if not castaway_obj.image_url:
-            from apps.scoring.wiki_images import fetch_fandom_image
+            from apps.castaways.wiki_images import fetch_fandom_image
             img_url = fetch_fandom_image(name)
             if img_url:
                 castaway_obj.image_url = img_url
