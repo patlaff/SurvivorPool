@@ -11,7 +11,7 @@ class SeasonSerializer(serializers.ModelSerializer):
 class CastawaySerializer(serializers.ModelSerializer):
     class Meta:
         model = Castaway
-        fields = ('castaway_id', 'name', 'age', 'hometown', 'occupation', 'is_eliminated', 'eliminated_episode')
+        fields = ('castaway_id', 'name', 'age', 'hometown', 'occupation', 'image_url', 'is_eliminated', 'eliminated_episode')
 
 
 class EpisodeSerializer(serializers.ModelSerializer):

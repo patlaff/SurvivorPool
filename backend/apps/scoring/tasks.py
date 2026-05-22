@@ -82,7 +82,7 @@ def _sync_season(season_number: int) -> None:
         boot_ep = row.get('episode')
         boot_ep = int(boot_ep) if pd.notna(boot_ep) and boot_ep is not None else None
 
-        Castaway.objects.update_or_create(
+        castaway_obj, _ = Castaway.objects.update_or_create(
             castaway_id=castaway_id,
             defaults={
                 'season': season_obj,
@@ -94,6 +94,13 @@ def _sync_season(season_number: int) -> None:
                 'eliminated_episode': boot_ep if is_eliminated else None,
             },
         )
+
+        if not castaway_obj.image_url:
+            from apps.scoring.wiki_images import fetch_fandom_image
+            img_url = fetch_fandom_image(name)
+            if img_url:
+                castaway_obj.image_url = img_url
+                castaway_obj.save(update_fields=['image_url'])
 
     # ── Sync episodes ──────────────────────────────────────────────────────────
     # survivoR JSON schema: version, season, episode (number), episode_date, ...

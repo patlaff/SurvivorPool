@@ -27,6 +27,7 @@ class Castaway(models.Model):
     age = models.IntegerField(null=True, blank=True)
     hometown = models.CharField(max_length=255, blank=True)
     occupation = models.CharField(max_length=255, blank=True)
+    image_url = models.URLField(max_length=500, blank=True)
     is_eliminated = models.BooleanField(default=False)
     eliminated_episode = models.IntegerField(null=True, blank=True)
 
