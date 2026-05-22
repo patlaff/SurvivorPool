@@ -1,0 +1,94 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+
+# Prevent concurrent deploys; never cancel an in-progress deploy (could leave
+# the server in a broken state).
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # ------------------------------------------------------------------ #
+      # SSH setup
+      # Required secrets:
+      #   SSH_PRIVATE_KEY  — contents of the EC2 key pair PEM file
+      #   EC2_HOST         — Elastic IP (or hostname) of the EC2 instance
+      # ------------------------------------------------------------------ #
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          install -dm 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      # ------------------------------------------------------------------ #
+      # Build .env from GitHub Secrets / Variables.
+      #
+      # Required secrets:
+      #   DJANGO_SECRET_KEY  — Django SECRET_KEY (long random string)
+      #   GOOGLE_CLIENT_ID   — Google OAuth 2.0 client ID
+      #
+      # Optional variables (Actions → Variables, not Secrets):
+      #   ALLOWED_HOSTS      — comma-separated; defaults to EC2_HOST
+      #   CORS_ALLOWED_ORIGINS — defaults to http://<EC2_HOST>
+      #   ACTIVE_SEASON      — Survivor season number; defaults to 50
+      # ------------------------------------------------------------------ #
+      - name: Write .env
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          ALLOWED_HOSTS: ${{ vars.ALLOWED_HOSTS || secrets.EC2_HOST }}
+          CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || format('http://{0}', secrets.EC2_HOST) }}
+          ACTIVE_SEASON: ${{ vars.ACTIVE_SEASON || '50' }}
+        run: |
+          printf 'SECRET_KEY=%s\n'             "$DJANGO_SECRET_KEY"                                   >  .env
+          printf 'DEBUG=False\n'                                                                       >> .env
+          printf 'ALLOWED_HOSTS=%s\n'          "$ALLOWED_HOSTS"                                       >> .env
+          printf 'DATABASE_URL=%s\n'           "postgres://survivorpool:survivorpool@db:5432/survivorpool" >> .env
+          printf 'REDIS_URL=%s\n'              "redis://redis:6379/0"                                 >> .env
+          printf 'GOOGLE_CLIENT_ID=%s\n'       "$GOOGLE_CLIENT_ID"                                    >> .env
+          printf 'VITE_GOOGLE_CLIENT_ID=%s\n'  "$GOOGLE_CLIENT_ID"                                    >> .env
+          printf 'ACTIVE_SEASON=%s\n'          "$ACTIVE_SEASON"                                       >> .env
+          printf 'CORS_ALLOWED_ORIGINS=%s\n'   "$CORS_ALLOWED_ORIGINS"                                >> .env
+
+      - name: Copy files to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          scp -i ~/.ssh/deploy_key \
+            .env docker-compose.yml scoring_config.json \
+            "ubuntu@${EC2_HOST}:/opt/survivorpool/"
+
+      - name: Rebuild and restart containers
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "ubuntu@${EC2_HOST}" \
+            'cd /opt/survivorpool && docker compose up --build -d --remove-orphans'
+
+      - name: Run database migrations
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "ubuntu@${EC2_HOST}" \
+            'cd /opt/survivorpool && docker compose exec -T backend python manage.py migrate --noinput'
