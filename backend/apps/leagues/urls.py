@@ -12,6 +12,7 @@ from .views import (
     LeagueJoinView,
     LeagueListCreateView,
     MyScoresView,
+    PicksGridView,
     RosterView,
     SwapPerkView,
 )
@@ -32,4 +33,5 @@ urlpatterns = [
     path('leagues/<slug:slug>/scores/', MyScoresView.as_view(), name='my-scores'),
     path('leagues/<slug:slug>/scores/<int:episode_number>/', EpisodeScoresView.as_view(), name='episode-scores'),
     path('leagues/<slug:slug>/activity/', LeagueActivityView.as_view(), name='league-activity'),
+    path('leagues/<slug:slug>/picks-grid/', PicksGridView.as_view(), name='picks-grid'),
 ]
