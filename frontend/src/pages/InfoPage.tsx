@@ -29,40 +29,40 @@ export default function InfoPage() {
       {/* ── How to Play ──────────────────────────────────────────────────── */}
       <section>
         <h1 className="text-3xl font-bold mb-1">How to Play</h1>
-        <p className="text-gray-500 text-sm mb-6">Everything you need to know about SurvivorPool</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">Everything you need to know about SurvivorPool</p>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="card">
             <h2 className="font-semibold text-lg mb-2">🏝 Pick Your Tribe</h2>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Before the draft closes, pick <strong>5 castaways</strong> from the current Survivor season.
               These players make up your personal roster for the entire season.
             </p>
           </div>
           <div className="card">
             <h2 className="font-semibold text-lg mb-2">📺 Earn Points Each Episode</h2>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               After each episode airs, points are automatically tallied based on what your castaways did —
               winning challenges, finding idols, getting votes, and more.
             </p>
           </div>
           <div className="card">
             <h2 className="font-semibold text-lg mb-2">🔄 Swap Perk</h2>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Once per season, use your <strong>Swap</strong> perk to replace one castaway on your roster
               with any available player. Available after the merge episode.
             </p>
           </div>
           <div className="card">
             <h2 className="font-semibold text-lg mb-2">⚡ Boost Perk</h2>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Once per season, use your <strong>Boost</strong> perk to double all points earned by your
               roster for a chosen episode. Pick wisely — it can only be used before the episode airs.
             </p>
           </div>
           <div className="card sm:col-span-2">
             <h2 className="font-semibold text-lg mb-2">🏆 Win Your League</h2>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               The player with the most cumulative points at the end of the season wins the league.
               Scores update automatically after each episode is processed. Rally your alliance and
               outlast, outplay, outwit!
@@ -74,27 +74,27 @@ export default function InfoPage() {
       {/* ── Points Breakdown ─────────────────────────────────────────────── */}
       <section>
         <h2 className="text-2xl font-bold mb-1">Points Breakdown</h2>
-        <p className="text-gray-500 text-sm mb-4">How points are awarded each episode</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">How points are awarded each episode</p>
 
         {configLoading ? (
-          <div className="text-gray-400 text-sm">Loading scoring info…</div>
+          <div className="text-gray-400 dark:text-gray-500 text-sm">Loading scoring info…</div>
         ) : Object.keys(config).length === 0 ? (
-          <div className="text-gray-400 text-sm">No scoring data available.</div>
+          <div className="text-gray-400 dark:text-gray-500 text-sm">No scoring data available.</div>
         ) : (
           <div className="card p-0 overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+              <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <tr>
                   <th className="px-4 py-3 text-left">Event</th>
                   <th className="px-4 py-3 text-right w-28">Points</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {Object.entries(config)
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([key, pts]) => (
-                    <tr key={key} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 font-medium text-gray-700">
+                    <tr key={key} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <td className="px-4 py-2 font-medium text-gray-700 dark:text-gray-300">
                         {formatEventName(key)}
                       </td>
                       <td className="px-4 py-2 text-right">
@@ -115,16 +115,16 @@ export default function InfoPage() {
         <h2 className="text-2xl font-bold mb-1">
           {season ? `Season ${season.season_number} — ${season.name}` : 'Current Season'}
         </h2>
-        <p className="text-gray-500 text-sm mb-4">Episode schedule and scoring status</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Episode schedule and scoring status</p>
 
         {seasonLoading ? (
-          <div className="text-gray-400 text-sm">Loading season info…</div>
+          <div className="text-gray-400 dark:text-gray-500 text-sm">Loading season info…</div>
         ) : episodes.length === 0 ? (
-          <div className="text-gray-400 text-sm">No episode data available.</div>
+          <div className="text-gray-400 dark:text-gray-500 text-sm">No episode data available.</div>
         ) : (
           <div className="card p-0 overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+              <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <tr>
                   <th className="px-4 py-3 text-left">Episode</th>
                   <th className="px-4 py-3 text-left">Air Date</th>
@@ -132,7 +132,7 @@ export default function InfoPage() {
                   <th className="px-4 py-3 text-left">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {episodes.map(ep => {
                   const airDate = new Date(ep.air_date)
                   airDate.setHours(0, 0, 0, 0)
@@ -143,7 +143,7 @@ export default function InfoPage() {
                   return (
                     <tr
                       key={ep.episode_number}
-                      className={`hover:bg-gray-50 ${isUpcoming ? 'text-gray-400' : ''}`}
+                      className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${isUpcoming ? 'text-gray-400 dark:text-gray-500' : ''}`}
                     >
                       <td className="px-4 py-2 font-medium">
                         Ep {ep.episode_number}
@@ -161,7 +161,7 @@ export default function InfoPage() {
                             🤝 Merge
                           </span>
                         ) : (
-                          <span className="text-gray-400 text-xs">Regular</span>
+                          <span className="text-gray-400 dark:text-gray-500 text-xs">Regular</span>
                         )}
                       </td>
                       <td className="px-4 py-2">
@@ -174,7 +174,7 @@ export default function InfoPage() {
                             ⏳ Pending
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-400">Upcoming</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">Upcoming</span>
                         )}
                       </td>
                     </tr>
@@ -183,7 +183,7 @@ export default function InfoPage() {
               </tbody>
             </table>
             {season?.draft_lock_date && (
-              <div className="px-4 py-3 border-t border-gray-100 text-xs text-gray-500 bg-gray-50">
+              <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
                 Draft closes: <strong>{formatDate(season.draft_lock_date)}</strong>
               </div>
             )}

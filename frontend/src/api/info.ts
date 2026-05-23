@@ -6,6 +6,8 @@ export interface SeasonInfo {
   name: string
   is_active: boolean
   draft_lock_date: string | null
+  allows_new_leagues: boolean
+  next_detected_at: string | null
 }
 
 export interface EpisodeInfo {

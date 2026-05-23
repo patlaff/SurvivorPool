@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useLeague, useMyRoster, useAvailableCastaways, useSwapPerk, useBoostPerk, useSeasonEpisodes } from '../api/leagues'
 import { useAuth } from '../hooks/useAuth'
+import { Breadcrumbs } from '../components/Breadcrumbs'
 
 export default function RosterPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -56,6 +57,11 @@ export default function RosterPage() {
 
   return (
     <div className="max-w-2xl">
+      <Breadcrumbs crumbs={[
+        { label: 'My Leagues', to: '/' },
+        { label: league?.name ?? '…', to: `/leagues/${slug}` },
+        { label: 'My Roster' },
+      ]} />
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">My Roster</h1>
         <span className="text-lg font-bold text-survivor-orange">{roster?.total_points ?? 0} pts</span>
@@ -67,9 +73,9 @@ export default function RosterPage() {
         {roster?.slots.map(slot => (
           <div key={slot.slot_number} className="card flex items-center gap-3">
             {slot.castaway.image_url ? (
-              <img src={slot.castaway.image_url} alt={slot.castaway.name} className="w-12 h-12 rounded-full object-cover object-top flex-shrink-0" />
+              <img src={slot.castaway.image_url} alt={slot.castaway.name} referrerPolicy="no-referrer" className="w-12 h-12 rounded-full object-cover object-top flex-shrink-0" />
             ) : (
-              <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0" />
+              <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
             )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -80,7 +86,7 @@ export default function RosterPage() {
               </div>
               <div className="mt-1 flex flex-wrap gap-1">
                 {slot.events.map((ev, i) => (
-                  <span key={i} className="text-xs bg-gray-100 rounded px-2 py-0.5">
+                  <span key={i} className="text-xs bg-gray-100 dark:bg-gray-700 rounded px-2 py-0.5">
                     {ev.event_name.replace(/_/g, ' ')} +{ev.points}
                   </span>
                 ))}
@@ -95,15 +101,15 @@ export default function RosterPage() {
         <div className="card">
           <h3 className="font-semibold mb-1">🔄 Swap</h3>
           {swap?.used ? (
-            <p className="text-sm text-gray-500">Used — swapped {swap.swapped_out_castaway?.name} for {swap.swapped_in_castaway?.name}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Used — swapped {swap.swapped_out_castaway?.name} for {swap.swapped_in_castaway?.name}</p>
           ) : !swapWindowOpen ? (
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-400 dark:text-gray-500">
               Window closed — tribes merged
               {mergeEpisode ? ` (Ep ${mergeEpisode.episode_number})` : ''}.
             </p>
           ) : (
             <>
-              <p className="text-sm text-gray-500 mb-3">Replace one castaway before the merge.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Replace one castaway before the merge.</p>
               <button className="btn-primary text-sm" onClick={() => setShowSwap(true)}>Use Swap</button>
             </>
           )}
@@ -128,12 +134,12 @@ export default function RosterPage() {
         <div className="card">
           <h3 className="font-semibold mb-1">⚡ Boost</h3>
           {boost?.used ? (
-            <p className="text-sm text-gray-500">Used — 2× on Episode {boost.boost_target_episode}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Used — 2× on Episode {boost.boost_target_episode}</p>
           ) : boostEligible.length === 0 ? (
-            <p className="text-sm text-gray-400">No eligible episodes remaining.</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">No eligible episodes remaining.</p>
           ) : (
             <>
-              <p className="text-sm text-gray-500 mb-3">Double your points for one episode (not the finale).</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Double your points for one episode (not the finale).</p>
               <button className="btn-primary text-sm" onClick={() => setShowBoost(true)}>Use Boost</button>
             </>
           )}

@@ -5,13 +5,21 @@ from .models import Season, Castaway, Episode
 class SeasonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Season
-        fields = ('season_number', 'name', 'is_active', 'draft_lock_date')
+        fields = ('season_number', 'name', 'is_active', 'draft_lock_date',
+                  'allows_new_leagues', 'next_detected_at')
 
 
 class CastawaySerializer(serializers.ModelSerializer):
+    display_name = serializers.CharField(read_only=True)
+
     class Meta:
         model = Castaway
-        fields = ('castaway_id', 'name', 'age', 'hometown', 'occupation', 'image_url', 'is_eliminated', 'eliminated_episode')
+        fields = (
+            'castaway_id', 'name', 'alias', 'display_name',
+            'age', 'hometown', 'occupation',
+            'image_url', 'original_tribe', 'tribe_color',
+            'is_eliminated', 'eliminated_episode',
+        )
 
 
 class EpisodeSerializer(serializers.ModelSerializer):

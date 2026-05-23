@@ -24,7 +24,7 @@ function activityDetail(event: ActivityEvent): string {
 }
 
 function PicksGridTab({ data, isLoading }: { data: PicksGridResponse | undefined; isLoading: boolean }) {
-  if (isLoading) return <p className="text-gray-400 py-8 text-center">Loading picks…</p>
+  if (isLoading) return <p className="text-gray-400 dark:text-gray-500 py-8 text-center">Loading picks…</p>
   if (!data) return null
 
   if (data.draft_open) {
@@ -39,17 +39,17 @@ function PicksGridTab({ data, isLoading }: { data: PicksGridResponse | undefined
   const draftedPlayers = players.filter(p => p.has_drafted)
 
   if (draftedPlayers.length === 0) {
-    return <p className="text-gray-400 py-8 text-center">No picks saved yet.</p>
+    return <p className="text-gray-400 dark:text-gray-500 py-8 text-center">No picks saved yet.</p>
   }
 
   return (
     <div className="overflow-x-auto">
       <table className="text-sm border-collapse">
         <thead>
-          <tr className="text-left border-b">
-            <th className="pb-2 pr-4 font-semibold text-gray-700 whitespace-nowrap">Castaway</th>
+          <tr className="text-left border-b dark:border-gray-700">
+            <th className="pb-2 pr-4 font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">Castaway</th>
             {draftedPlayers.map(p => (
-              <th key={p.user.id} className="pb-2 px-3 text-center font-medium text-gray-600 whitespace-nowrap">
+              <th key={p.user.id} className="pb-2 px-3 text-center font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
                 <div className="flex flex-col items-center gap-1">
                   {p.user.avatar_url && (
                     <img src={p.user.avatar_url} className="w-6 h-6 rounded-full" alt="" />
@@ -58,18 +58,21 @@ function PicksGridTab({ data, isLoading }: { data: PicksGridResponse | undefined
                 </div>
               </th>
             ))}
-            <th className="pb-2 pl-4 text-center font-semibold text-gray-700 whitespace-nowrap">Total</th>
+            <th className="pb-2 pl-4 text-center font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">Total</th>
           </tr>
         </thead>
         <tbody>
           {castaways.map(castaway => (
-            <tr key={castaway.castaway_id} className="border-b hover:bg-gray-50">
+            <tr key={castaway.castaway_id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td className="py-2 pr-4 whitespace-nowrap">
-                <span className={castaway.is_eliminated ? 'line-through text-gray-400' : 'text-gray-800'}>
+                <span
+                  className={castaway.is_eliminated ? 'line-through text-gray-400' : 'font-medium'}
+                  style={!castaway.is_eliminated && castaway.tribe_color ? { color: castaway.tribe_color } : undefined}
+                >
                   {castaway.name}
                 </span>
                 {castaway.is_eliminated && castaway.eliminated_episode != null && (
-                  <span className="ml-1 text-xs text-gray-400">(Ep {castaway.eliminated_episode})</span>
+                  <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">(Ep {castaway.eliminated_episode})</span>
                 )}
               </td>
               {draftedPlayers.map(p => (
@@ -81,8 +84,8 @@ function PicksGridTab({ data, isLoading }: { data: PicksGridResponse | undefined
                   )}
                 </td>
               ))}
-              <td className="py-2 pl-4 text-center font-semibold text-gray-700">
-                {castaway.pick_count > 0 ? castaway.pick_count : <span className="text-gray-300">0</span>}
+              <td className="py-2 pl-4 text-center font-semibold text-gray-700 dark:text-gray-300">
+                {castaway.pick_count > 0 ? castaway.pick_count : <span className="text-gray-300 dark:text-gray-600">0</span>}
               </td>
             </tr>
           ))}
@@ -93,12 +96,12 @@ function PicksGridTab({ data, isLoading }: { data: PicksGridResponse | undefined
 }
 
 function ActivityLogTab({ events, isLoading }: { events: ActivityEvent[] | undefined; isLoading: boolean }) {
-  if (isLoading) return <p className="text-gray-400 py-8 text-center">Loading activity…</p>
-  if (!events || events.length === 0) return <p className="text-gray-400 py-8 text-center">No activity yet in this league.</p>
+  if (isLoading) return <p className="text-gray-400 dark:text-gray-500 py-8 text-center">Loading activity…</p>
+  if (!events || events.length === 0) return <p className="text-gray-400 dark:text-gray-500 py-8 text-center">No activity yet in this league.</p>
   return (
     <div className="space-y-3">
       {events.map((event, idx) => (
-        <div key={idx} className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50">
+        <div key={idx} className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
           <span className="text-xl mt-0.5">{activityIcon(event.type)}</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -106,9 +109,9 @@ function ActivityLogTab({ events, isLoading }: { events: ActivityEvent[] | undef
                 <img src={event.user.avatar_url} className="w-5 h-5 rounded-full" alt="" />
               )}
               <span className="font-medium text-sm">{event.user.display_name}</span>
-              <span className="text-xs text-gray-400">{new Date(event.timestamp).toLocaleString()}</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">{new Date(event.timestamp).toLocaleString()}</span>
             </div>
-            <p className="text-sm text-gray-600 mt-0.5">{activityDetail(event)}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{activityDetail(event)}</p>
           </div>
         </div>
       ))}
@@ -187,37 +190,48 @@ export default function LeaguePage() {
         <div>
           <h1 className="text-2xl font-bold">{league?.name ?? '…'}</h1>
           {league?.owner && (
-            <p className="text-sm text-gray-500">Owned by {league.owner.display_name}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Owned by {league.owner.display_name}</p>
           )}
         </div>
         <div className="flex gap-3">
-          <Link to={`/leagues/${slug}/draft`} className="btn-secondary">Draft</Link>
-          <Link to={`/leagues/${slug}/roster`} className="btn-secondary">My Roster</Link>
+          {league?.is_archived
+            ? <span className="inline-flex items-center px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700">Archived</span>
+            : <>
+                <Link to={`/leagues/${slug}/draft`} className="btn-secondary">Draft</Link>
+                <Link to={`/leagues/${slug}/roster`} className="btn-secondary">My Roster</Link>
+              </>
+          }
         </div>
       </div>
 
+      {league?.is_archived && (
+        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-6 text-sm text-gray-600 dark:text-gray-400">
+          This league has concluded. All scores and rosters are preserved as a read-only record.
+        </div>
+      )}
+
       {league?.owner?.id === user?.id && league?.invite_code && (
         <div className="card mb-6 flex items-center gap-4">
-          <span className="text-sm text-gray-500">Invite code:</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">Invite code:</span>
           <span className="font-mono font-bold text-survivor-orange text-lg tracking-widest">{league.invite_code}</span>
-          <button onClick={() => navigator.clipboard.writeText(league.invite_code!)} className="text-xs text-gray-400 hover:text-gray-700">Copy</button>
+          <button onClick={() => navigator.clipboard.writeText(league.invite_code!)} className="text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">Copy</button>
         </div>
       )}
 
       {isOwner && league && (
         <div className="card mb-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Draft Settings</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Draft Settings</h2>
           <div className="flex flex-wrap items-start gap-4">
 
             {/* Status badge */}
             <div className="flex items-center gap-2 pt-1">
-              <span className="text-sm text-gray-500">Status:</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Status:</span>
               {league.draft_open
                 ? <span className="badge-green">● Open</span>
                 : <span className="badge-red">● Closed</span>
               }
               {league.draft_close_at && (
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-400 dark:text-gray-500">
                   (closes {new Date(league.draft_close_at).toLocaleString()})
                 </span>
               )}
@@ -252,7 +266,7 @@ export default function LeaguePage() {
             <div className="flex items-center gap-2">
               <input
                 type="datetime-local"
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:border-survivor-orange focus:outline-none focus:ring-1 focus:ring-survivor-orange"
+                className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-survivor-orange focus:outline-none focus:ring-1 focus:ring-survivor-orange"
                 value={scheduleInput}
                 onChange={e => setScheduleInput(e.target.value)}
               />
@@ -278,12 +292,12 @@ export default function LeaguePage() {
         </div>
       )}
 
-      <div className="flex gap-4 mb-4 border-b">
-        <button className={`pb-2 text-sm font-medium ${tab === 'leaderboard' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500'}`} onClick={() => setTab('leaderboard')}>Leaderboard</button>
-        <button className={`pb-2 text-sm font-medium ${tab === 'chart' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500'}`} onClick={() => setTab('chart')}>Points Chart</button>
-        <button className={`pb-2 text-sm font-medium ${tab === 'picks' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500'}`} onClick={() => setTab('picks')}>Picks Grid</button>
+      <div className="flex gap-4 mb-4 border-b dark:border-gray-700">
+        <button className={`pb-2 text-sm font-medium ${tab === 'leaderboard' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500 dark:text-gray-400'}`} onClick={() => setTab('leaderboard')}>Leaderboard</button>
+        <button className={`pb-2 text-sm font-medium ${tab === 'chart' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500 dark:text-gray-400'}`} onClick={() => setTab('chart')}>Points Chart</button>
+        <button className={`pb-2 text-sm font-medium ${tab === 'picks' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500 dark:text-gray-400'}`} onClick={() => setTab('picks')}>Picks Grid</button>
         {isOwner && (
-          <button className={`pb-2 text-sm font-medium ${tab === 'activity' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500'}`} onClick={() => setTab('activity')}>Activity Log</button>
+          <button className={`pb-2 text-sm font-medium ${tab === 'activity' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500 dark:text-gray-400'}`} onClick={() => setTab('activity')}>Activity Log</button>
         )}
       </div>
 
@@ -293,13 +307,13 @@ export default function LeaguePage() {
         </div>
       )}
 
-      {isLoading && tab !== 'activity' && tab !== 'picks' && <div className="text-gray-400 py-8 text-center">Loading scores…</div>}
+      {isLoading && tab !== 'activity' && tab !== 'picks' && <div className="text-gray-400 dark:text-gray-500 py-8 text-center">Loading scores…</div>}
 
       {tab === 'leaderboard' && leaderboard && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 border-b">
+              <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
                 <th className="pb-2 pr-4">#</th>
                 <th className="pb-2 pr-4">Player</th>
                 {episodeColumns.map(ep => (
@@ -310,15 +324,15 @@ export default function LeaguePage() {
             </thead>
             <tbody>
               {leaderboard.map(entry => (
-                <tr key={entry.user.id} className="border-b hover:bg-gray-50">
-                  <td className="py-3 pr-4 font-bold text-gray-400">#{entry.rank}</td>
+                <tr key={entry.user.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <td className="py-3 pr-4 font-bold text-gray-400 dark:text-gray-500">#{entry.rank}</td>
                   <td className="py-3 pr-4">
                     {entry.roster_hidden
                       ? (
                         <span className="flex items-center gap-2">
                           {entry.user.avatar_url && <img src={entry.user.avatar_url} className="w-6 h-6 rounded-full" alt="" />}
                           <span>{entry.user.display_name}</span>
-                          <span className="text-gray-400 text-xs" title="Roster hidden during draft window">🔒</span>
+                          <span className="text-gray-400 dark:text-gray-500 text-xs" title="Roster hidden during draft window">🔒</span>
                         </span>
                       ) : (
                         <Link to={`/leagues/${slug}/roster/${entry.user.id}`} className="flex items-center gap-2 hover:underline">
@@ -330,17 +344,17 @@ export default function LeaguePage() {
                   </td>
                   {entry.roster_hidden
                     ? episodeColumns.map(ep => (
-                        <td key={ep.episode_number} className="py-3 pr-2 text-right text-gray-300">—</td>
+                        <td key={ep.episode_number} className="py-3 pr-2 text-right text-gray-300 dark:text-gray-600">—</td>
                       ))
                     : entry.episodes.map(ep => (
-                        <td key={ep.episode_number} className="py-3 pr-2 text-right text-gray-600">
+                        <td key={ep.episode_number} className="py-3 pr-2 text-right text-gray-600 dark:text-gray-400">
                           {ep.final_points > ep.raw_points && <span title="Boosted" className="text-survivor-gold mr-1">⚡</span>}
                           {ep.final_points}
                         </td>
                       ))
                   }
                   <td className="py-3 text-right font-bold">
-                    {entry.roster_hidden ? <span className="text-gray-300">—</span> : entry.total_points}
+                    {entry.roster_hidden ? <span className="text-gray-300 dark:text-gray-600">—</span> : entry.total_points}
                   </td>
                 </tr>
               ))}
@@ -366,7 +380,7 @@ export default function LeaguePage() {
       )}
 
       {leaderboard?.length === 0 && tab !== 'activity' && tab !== 'picks' && (
-        <p className="text-center text-gray-400 py-8">No episodes scored yet.</p>
+        <p className="text-center text-gray-400 dark:text-gray-500 py-8">No episodes scored yet.</p>
       )}
 
       {tab === 'picks' && (
@@ -378,7 +392,7 @@ export default function LeaguePage() {
       )}
 
       {lastScoredAt && tab !== 'activity' && tab !== 'picks' && (
-        <p className="mt-4 text-xs text-gray-400 text-right">Last updated {formatLastUpdated(lastScoredAt)}</p>
+        <p className="mt-4 text-xs text-gray-400 dark:text-gray-500 text-right">Last updated {formatLastUpdated(lastScoredAt)}</p>
       )}
     </div>
   )

@@ -52,6 +52,21 @@ def _sync_season(season_number: int) -> None:
     except Exception:
         logger.debug('castaway_details unavailable — occupation will be blank')
 
+    # Build original-tribe → hex color map for this season
+    tribe_color_map: dict[str, str] = {}
+    try:
+        tc = _fetch_json('tribe_colours')
+        us_tc = _filter_us_season(tc, season_number)
+        if 'tribe_status' in us_tc.columns:
+            original_tribes = us_tc[us_tc['tribe_status'] == 'Original']
+            if 'tribe' in original_tribes.columns and 'tribe_colour' in original_tribes.columns:
+                tribe_color_map = dict(zip(original_tribes['tribe'], original_tribes['tribe_colour']))
+                logger.info('Loaded %d tribe colors for S%d: %s', len(tribe_color_map), season_number, tribe_color_map)
+    except Exception:
+        logger.debug('tribe_colours unavailable — tribe colors will be blank')
+
+    # Ensure exactly one US season is active at a time before creating/updating.
+    Season.objects.filter(version='US').exclude(season_number=season_number).update(is_active=False)
     season_obj, _ = Season.objects.update_or_create(
         season_number=season_number,
         defaults={'name': f'Survivor Season {season_number}', 'version': 'US', 'is_active': True},
@@ -82,6 +97,8 @@ def _sync_season(season_number: int) -> None:
         boot_ep = row.get('episode')
         boot_ep = int(boot_ep) if pd.notna(boot_ep) and boot_ep is not None else None
 
+        original_tribe_val = str(row.get('original_tribe') or '').strip()
+
         castaway_obj, _ = Castaway.objects.update_or_create(
             castaway_id=castaway_id,
             defaults={
@@ -90,6 +107,8 @@ def _sync_season(season_number: int) -> None:
                 'age': int(row['age']) if 'age' in row and pd.notna(row.get('age')) else None,
                 'hometown': hometown,
                 'occupation': occupation,
+                'original_tribe': original_tribe_val,
+                'tribe_color': tribe_color_map.get(original_tribe_val, ''),
                 'is_eliminated': is_eliminated,
                 'eliminated_episode': boot_ep if is_eliminated else None,
             },
@@ -97,7 +116,9 @@ def _sync_season(season_number: int) -> None:
 
         if not castaway_obj.image_url:
             from apps.castaways.wiki_images import fetch_fandom_image
-            img_url = fetch_fandom_image(name)
+            # Use the alias (if set) for the Fandom lookup — aliases match the wiki page name
+            lookup_name = castaway_obj.alias or name
+            img_url = fetch_fandom_image(lookup_name)
             if img_url:
                 castaway_obj.image_url = img_url
                 castaway_obj.save(update_fields=['image_url'])
@@ -167,15 +188,68 @@ def _sync_season(season_number: int) -> None:
     )
 
 
+def _probe_next_season(active_season) -> None:
+    """
+    Check whether castaways for active_season.season_number+1 have appeared in the
+    survivoR dataset.  Sends email notifications on first detection and when the cast
+    looks complete (≥ COMPLETE_THRESHOLD castaways).  Does nothing if both notifications
+    have already been sent.
+    """
+    from django.utils import timezone
+    from apps.scoring.emails import notify_next_season_detected, notify_next_season_complete
+
+    COMPLETE_THRESHOLD = 18
+    next_num = active_season.season_number + 1
+
+    # Nothing left to check — both notifications already sent
+    if (active_season.next_detected_at is not None
+            and active_season.next_complete_notified_at is not None):
+        return
+
+    try:
+        raw = _fetch_json('castaways')
+        next_rows = _filter_us_season(raw, next_num)
+    except Exception:
+        logger.debug('_probe_next_season: could not fetch castaways for S%d', next_num)
+        return
+
+    if next_rows.empty:
+        return
+
+    count = len(next_rows)
+    update_fields = []
+
+    if active_season.next_detected_at is None:
+        active_season.next_detected_at = timezone.now()
+        update_fields.append('next_detected_at')
+        logger.info('Next season S%d detected: %d castaway(s)', next_num, count)
+        notify_next_season_detected(active_season.season_number, next_num, count)
+
+    if active_season.next_complete_notified_at is None and count >= COMPLETE_THRESHOLD:
+        active_season.next_complete_notified_at = timezone.now()
+        update_fields.append('next_complete_notified_at')
+        logger.info('Next season S%d cast complete: %d castaway(s)', next_num, count)
+        notify_next_season_complete(active_season.season_number, next_num, count)
+
+    if update_fields:
+        active_season.save(update_fields=update_fields)
+
+
 @shared_task(name='apps.scoring.tasks.sync_season_data')
 def sync_season_data() -> None:
-    season_number = settings.ACTIVE_SEASON
+    from apps.castaways.models import Season as SeasonModel
+    active_season = SeasonModel.objects.filter(is_active=True, version='US').first()
+    if active_season is None:
+        logger.warning('sync_season_data: no active US season found in DB, skipping')
+        return
+    season_number = active_season.season_number
     logger.info('Syncing season %d', season_number)
     try:
         _sync_season(season_number)
     except Exception:
         logger.exception('sync_season_data failed for season %d', season_number)
         raise
+    _probe_next_season(active_season)
 
 
 @shared_task(name='apps.scoring.tasks.score_active_season')

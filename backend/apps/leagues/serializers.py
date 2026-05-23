@@ -26,7 +26,7 @@ class LeagueSerializer(serializers.ModelSerializer):
         model = League
         fields = ('id', 'name', 'slug', 'season_id', 'season_number', 'owner', 'member_count',
                   'draft_lock_date', 'draft_open', 'draft_close_at', 'draft_force_open',
-                  'is_test', 'created_at')
+                  'is_test', 'is_archived', 'created_at')
         read_only_fields = ('slug', 'created_at')
 
     def get_member_count(self, obj):
@@ -59,7 +59,7 @@ class PerkSerializer(serializers.ModelSerializer):
 
 
 class ScoringEventSerializer(serializers.ModelSerializer):
-    castaway_name = serializers.CharField(source='castaway.name', read_only=True)
+    castaway_name = serializers.CharField(source='castaway.display_name', read_only=True)
 
     class Meta:
         model = ScoringEvent

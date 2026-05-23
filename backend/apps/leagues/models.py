@@ -35,6 +35,11 @@ class League(models.Model):
         help_text='When True, all draft and perk restrictions are relaxed for testing purposes.',
     )
 
+    is_archived = models.BooleanField(
+        default=False,
+        help_text='True when the season has concluded. League becomes read-only.',
+    )
+
     # Per-league draft window overrides (both null = use season.draft_lock_date default)
     draft_close_at = models.DateTimeField(
         null=True, blank=True,

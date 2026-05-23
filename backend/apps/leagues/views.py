@@ -1,3 +1,5 @@
+import math
+
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -5,6 +7,8 @@ from rest_framework import generics, serializers as rest_framework_serializers, 
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from .join_lockout import check_lockout, record_failure, clear_lockout
 
 from apps.castaways.models import Castaway, Episode
 from apps.castaways.serializers import CastawaySerializer
@@ -92,10 +96,28 @@ class LeagueJoinByCodeView(APIView):
         invite_code = request.data.get('invite_code', '').strip()
         if not invite_code:
             return Response({'detail': 'Provide an invite_code.'}, status=status.HTTP_400_BAD_REQUEST)
-        league = get_object_or_404(League, invite_code=invite_code)
+
+        # ── Lockout check ─────────────────────────────────────────────────────
+        remaining = check_lockout(request.user.id)
+        if remaining > 0:
+            return Response(
+                {'detail': 'Too many failed attempts.', 'retry_after': math.ceil(remaining)},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        # ── Code lookup ───────────────────────────────────────────────────────
+        try:
+            league = League.objects.get(invite_code=invite_code)
+        except League.DoesNotExist:
+            record_failure(request.user.id)
+            return Response({'detail': 'Invalid invite code.'}, status=status.HTTP_404_NOT_FOUND)
+
         _, created = Membership.objects.get_or_create(league=league, user=request.user)
         if not created:
+            # Already a member — don't penalise as a brute-force failure
             return Response({'detail': 'Already a member.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        clear_lockout(request.user.id)
         return Response({'detail': 'Joined successfully.', 'slug': league.slug})
 
 
@@ -147,6 +169,11 @@ class DraftView(APIView):
         from apps.scoring.models import PlayerEpisodeScore, ScoringEvent
 
         league = self._league(slug, request.user)
+        if league.is_archived:
+            return Response(
+                {'detail': 'This league has been archived and is now read-only.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         if not league.is_test and not is_draft_open(league):
             return Response(
                 {'detail': 'Draft is closed.'},
@@ -378,6 +405,12 @@ class SwapPerkView(APIView):
         league = _get_league_for_member(slug, request.user)
         roster = get_object_or_404(Roster, league=league, user=request.user)
 
+        if league.is_archived:
+            return Response(
+                {'detail': 'This league has been archived and is now read-only.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         if not league.is_test:
             # Swap requires the draft to be closed (picks are locked)
             if is_draft_open(league):
@@ -426,6 +459,13 @@ class BoostPerkView(APIView):
     def post(self, request, slug):
         league = _get_league_for_member(slug, request.user)
         roster = get_object_or_404(Roster, league=league, user=request.user)
+
+        if league.is_archived:
+            return Response(
+                {'detail': 'This league has been archived and is now read-only.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         perk = get_object_or_404(Perk, roster=roster, perk_type=Perk.BOOST)
 
         if perk.used:
@@ -575,6 +615,8 @@ class PicksGridView(APIView):
             {
                 'castaway_id': c.castaway_id,
                 'name': c.name,
+                'original_tribe': c.original_tribe,
+                'tribe_color': c.tribe_color,
                 'is_eliminated': c.is_eliminated,
                 'eliminated_episode': c.eliminated_episode,
                 'pick_count': pick_counts[i],

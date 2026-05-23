@@ -14,6 +14,7 @@ export interface League {
   draft_close_at: string | null
   draft_force_open: boolean
   is_test: boolean
+  is_archived: boolean
   created_at: string
   invite_code?: string
   members?: { user: { id: number; display_name: string; avatar_url: string }; joined_at: string }[]
@@ -22,10 +23,14 @@ export interface League {
 export interface Castaway {
   castaway_id: string
   name: string
+  alias: string
+  display_name: string
   age: number | null
   hometown: string
   occupation: string
   image_url: string
+  original_tribe: string
+  tribe_color: string
   is_eliminated: boolean
   eliminated_episode: number | null
 }
@@ -232,6 +237,8 @@ export function useDraftWindow(slug: string) {
 export interface PicksGridCastaway {
   castaway_id: string
   name: string
+  original_tribe: string
+  tribe_color: string
   is_eliminated: boolean
   eliminated_episode: number | null
   pick_count: number

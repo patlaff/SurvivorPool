@@ -119,16 +119,33 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 ).split(',')
 CORS_ALLOW_CREDENTIALS = True
 
-CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
+
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'America/Los_Angeles'
 CELERY_ENABLE_UTC = True
 
+# ACTIVE_SEASON is only needed to bootstrap a fresh database.
+# Run: docker compose exec backend python manage.py sync_season <N>
+# After that, the active season is tracked in the database automatically.
 ACTIVE_SEASON = int(os.environ.get('ACTIVE_SEASON', 50))
 
 SCORING_CONFIG_PATH = BASE_DIR / 'scoring_config.json'
 
 SUPERADMIN_EMAILS = os.environ.get('SUPERADMIN_EMAILS', 'patlaff728@gmail.com').split(',')
+
+# ── Email (Gmail SMTP) ────────────────────────────────────────────────────────
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# Site URL used in notification email links
+ADMIN_SITE_URL = os.environ.get('ADMIN_SITE_URL', 'http://localhost')

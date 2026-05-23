@@ -18,8 +18,8 @@ export default function CreateLeaguePage() {
     return (
       <div className="max-w-md mx-auto card text-center py-10">
         <h2 className="text-xl font-bold mb-2">League Created!</h2>
-        <p className="text-gray-500 mb-6">Share this invite code with your players:</p>
-        <div className="bg-gray-100 rounded-xl px-6 py-4 text-3xl font-mono font-bold tracking-widest text-survivor-orange mb-6">
+        <p className="text-gray-500 dark:text-gray-400 mb-6">Share this invite code with your players:</p>
+        <div className="bg-gray-100 dark:bg-gray-700 rounded-xl px-6 py-4 text-3xl font-mono font-bold tracking-widest text-survivor-orange mb-6">
           {created.invite_code}
         </div>
         <button onClick={() => navigate(`/leagues/${created.slug}`)} className="btn-primary w-full">

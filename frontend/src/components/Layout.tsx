@@ -1,9 +1,11 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { useDarkMode } from '../hooks/useDarkMode'
 
 export function Layout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { dark, toggle } = useDarkMode()
 
   function handleLogout() {
     logout()
@@ -14,11 +16,14 @@ export function Layout() {
     <div className="min-h-screen flex flex-col">
       <header className="bg-survivor-dark text-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-survivor-orange font-bold text-xl tracking-tight">
+          <Link to="/info" className="flex items-center gap-2 text-survivor-orange font-bold text-xl tracking-tight">
             🔥 SurvivorPool
           </Link>
           {user && (
             <div className="flex items-center gap-4">
+              <Link to="/" className="text-sm text-gray-300 hover:text-white transition-colors">
+                My Leagues
+              </Link>
               <Link to="/info" className="text-sm text-gray-300 hover:text-white transition-colors">
                 How to Play
               </Link>
@@ -35,6 +40,22 @@ export function Layout() {
                 />
               )}
               <span className="text-sm text-gray-300">{user.display_name}</span>
+              <button
+                onClick={toggle}
+                aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+                title={dark ? 'Light mode' : 'Dark mode'}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                {dark ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364-.707.707M6.343 17.657l-.707.707M17.657 17.657l.707.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" />
+                  </svg>
+                )}
+              </button>
               <button
                 onClick={handleLogout}
                 className="text-sm text-gray-400 hover:text-white transition-colors"

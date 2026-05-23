@@ -1,9 +1,12 @@
 import json
+import logging
 import os
 import tempfile
 from collections import defaultdict
 from decimal import Decimal
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from django.conf import settings
 from django.db import transaction
@@ -12,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
 
-from apps.castaways.models import Season
+from apps.castaways.models import Season, Castaway
 from apps.leagues.models import League, Membership, Roster
 from apps.leagues.serializers import LeagueDetailSerializer
 from apps.leagues.utils import is_draft_open
@@ -56,7 +59,9 @@ class AdminLeaguesView(APIView):
                     'email': league.owner.email,
                 },
                 'member_count': league.memberships.count(),
+                'season_number': league.season.season_number,
                 'is_test': league.is_test,
+                'is_archived': league.is_archived,
                 'invite_code': league.invite_code,
                 'draft_open': is_draft_open(league),
                 'created_at': league.created_at,
@@ -111,7 +116,7 @@ class AdminScoringSummaryView(APIView):
                 'events': [
                     {
                         'castaway_id': ev.castaway.castaway_id,
-                        'castaway_name': ev.castaway.name,
+                        'castaway_name': ev.castaway.display_name,
                         'event_name': ev.event_name,
                         'points': ev.points,
                     }
@@ -131,7 +136,7 @@ class AdminScoringSummaryView(APIView):
             [
                 {
                     'castaway_id': cid,
-                    'name': v['castaway'].name,
+                    'name': v['castaway'].display_name,
                     'total_points': v['points'],
                     'is_eliminated': v['castaway'].is_eliminated,
                 }
@@ -258,6 +263,125 @@ class AdminScoringRescore(APIView):
         })
 
 
+# ── Admin: Archive Season ─────────────────────────────────────────────────────
+
+class AdminArchiveSeasonView(APIView):
+    """
+    POST /api/v1/admin/archive-season/<season_number>/
+
+    Archives all leagues for the given season and marks the season as no longer
+    accepting new leagues.  This is the "State 1 → dormant" transition.
+    The season remains is_active=True so the daily sync continues; use
+    AdminProgressSeasonView to fully transition to the next season.
+    """
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request, season_number):
+        from django.utils import timezone
+        season = get_object_or_404(Season, season_number=season_number, version='US')
+        leagues = League.objects.filter(season=season)
+        count = leagues.count()
+        leagues.update(
+            is_archived=True,
+            draft_force_open=False,
+            draft_close_at=timezone.now(),
+        )
+        season.allows_new_leagues = False
+        season.save(update_fields=['allows_new_leagues'])
+        return Response({'detail': f'Archived {count} league(s) for Season {season_number}.'})
+
+
+# ── Admin: Unarchive Season (testing only) ────────────────────────────────────
+
+class AdminUnarchiveSeasonView(APIView):
+    """
+    POST /api/v1/admin/unarchive-season/<season_number>/
+
+    Reverses an archive action for testing purposes:
+      - Sets is_archived=False on all leagues for the season
+      - Sets allows_new_leagues=True on the season
+      - Clears next_detected_at and next_complete_notified_at
+
+    Does NOT restore draft windows — use draft_force_open on individual leagues
+    if you need drafts to be open again after unarchiving.
+    """
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request, season_number):
+        season = get_object_or_404(Season, season_number=season_number, version='US')
+        leagues = League.objects.filter(season=season)
+        count = leagues.count()
+        leagues.update(is_archived=False)
+        season.allows_new_leagues = True
+        season.next_detected_at = None
+        season.next_complete_notified_at = None
+        season.save(update_fields=['allows_new_leagues', 'next_detected_at', 'next_complete_notified_at'])
+        return Response({'detail': f'Unarchived {count} league(s) for Season {season_number}.'})
+
+
+# ── Admin: Progress to Next Season ───────────────────────────────────────────
+
+class AdminProgressSeasonView(APIView):
+    """
+    POST /api/v1/admin/progress-season/
+
+    Atomically transitions from the current active season to the next:
+      1. Archives all remaining leagues for the current season.
+      2. Sets allows_new_leagues=False and is_active=False on the current season.
+      3. Syncs the next season from the survivoR dataset (sets is_active=True on it).
+
+    Requires that next_detected_at is set on the active season (i.e., the daily
+    probe has confirmed that next-season data exists in the dataset).
+    """
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request):
+        from django.utils import timezone
+        from apps.scoring.tasks import _sync_season
+
+        active_season = Season.objects.filter(is_active=True, version='US').first()
+        if active_season is None:
+            return Response({'detail': 'No active season found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if active_season.next_detected_at is None:
+            return Response(
+                {'detail': 'No next season data detected yet. Wait for the daily sync to find it.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        next_num = active_season.season_number + 1
+
+        # Archive any remaining live leagues
+        leagues = League.objects.filter(season=active_season)
+        league_count = leagues.count()
+        leagues.update(
+            is_archived=True,
+            draft_force_open=False,
+            draft_close_at=timezone.now(),
+        )
+
+        # Lock out new league creation and deactivate the old season
+        active_season.allows_new_leagues = False
+        active_season.is_active = False
+        active_season.save(update_fields=['allows_new_leagues', 'is_active'])
+
+        # Sync the new season — _sync_season sets is_active=True on the new season
+        try:
+            _sync_season(next_num)
+        except Exception as exc:
+            logger.exception('AdminProgressSeasonView: failed to sync S%d', next_num)
+            return Response(
+                {'detail': f'Leagues archived but sync of Season {next_num} failed: {exc}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response({
+            'detail': f'Progressed from Season {active_season.season_number} to Season {next_num}.',
+            'archived_leagues': league_count,
+            'new_active_season': next_num,
+        })
+
+
 # ── Admin: Score all unscored past episodes ───────────────────────────────────
 
 class AdminScoreUnscoredView(APIView):
@@ -313,4 +437,77 @@ class AdminScoreUnscoredView(APIView):
             'episodes_attempted': len(results),
             'episodes_scored': scored_count,
             'episodes': results,
+        })
+
+
+# ── Admin: Castaways list ─────────────────────────────────────────────────────
+
+class AdminCastawaysView(APIView):
+    """
+    GET /api/v1/admin/castaways/<season_number>/
+
+    Returns all castaways for a season with their alias and image info.
+    """
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request, season_number):
+        castaways = (
+            Castaway.objects
+            .filter(season__season_number=season_number, season__version='US')
+            .order_by('name')
+        )
+        data = [
+            {
+                'castaway_id': c.castaway_id,
+                'name': c.name,
+                'alias': c.alias,
+                'display_name': c.display_name,
+                'image_url': c.image_url,
+                'is_eliminated': c.is_eliminated,
+                'original_tribe': c.original_tribe,
+                'tribe_color': c.tribe_color,
+            }
+            for c in castaways
+        ]
+        return Response(data)
+
+
+# ── Admin: Update castaway alias (+ optional image re-fetch) ──────────────────
+
+class AdminCastawayAliasView(APIView):
+    """
+    PATCH /api/v1/admin/castaways/<castaway_id>/alias/
+
+    Body: { "alias": "Display Name", "refetch_image": true }
+
+    Updates the alias.  If refetch_image is true (or image_url is empty),
+    clears the existing image_url and re-fetches from Fandom using the new alias.
+    """
+    permission_classes = [IsSuperAdmin]
+
+    def patch(self, request, castaway_id):
+        from apps.castaways.wiki_images import fetch_fandom_image
+
+        castaway = get_object_or_404(Castaway, castaway_id=castaway_id)
+
+        new_alias = request.data.get('alias', '').strip()
+        refetch = bool(request.data.get('refetch_image', False))
+
+        castaway.alias = new_alias
+        update_fields = ['alias']
+
+        if refetch or not castaway.image_url:
+            lookup = new_alias or castaway.name
+            img_url = fetch_fandom_image(lookup)
+            castaway.image_url = img_url
+            update_fields.append('image_url')
+
+        castaway.save(update_fields=update_fields)
+
+        return Response({
+            'castaway_id': castaway.castaway_id,
+            'name': castaway.name,
+            'alias': castaway.alias,
+            'display_name': castaway.display_name,
+            'image_url': castaway.image_url,
         })
