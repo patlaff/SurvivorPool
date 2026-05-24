@@ -18,6 +18,10 @@ export interface League {
   created_at: string
   buy_in_amount: string | null
   venmo_handle: string | null
+  payout_first: number | null
+  payout_second: number | null
+  payout_third: number | null
+  total_pot?: number | null
   invite_code?: string
   members?: { user: { id: number; display_name: string; avatar_url: string }; joined_at: string; bought_in: boolean }[]
 }
@@ -303,6 +307,9 @@ export function useLeagueOverview(slug: string, enabled: boolean) {
 export interface LeagueSettingsPayload {
   buy_in_amount?: string | null
   venmo_handle?: string | null
+  payout_first?: number | null
+  payout_second?: number | null
+  payout_third?: number | null
 }
 
 export function useUpdateLeagueSettings(slug: string) {

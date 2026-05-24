@@ -26,7 +26,8 @@ class LeagueSerializer(serializers.ModelSerializer):
         model = League
         fields = ('id', 'name', 'slug', 'season_id', 'season_number', 'owner', 'member_count',
                   'draft_lock_date', 'draft_open', 'draft_close_at', 'draft_force_open',
-                  'is_test', 'is_archived', 'created_at', 'buy_in_amount', 'venmo_handle')
+                  'is_test', 'is_archived', 'created_at', 'buy_in_amount', 'venmo_handle',
+                  'payout_first', 'payout_second', 'payout_third')
         read_only_fields = ('slug', 'created_at')
 
     def get_member_count(self, obj):
@@ -43,9 +44,16 @@ class LeagueSerializer(serializers.ModelSerializer):
 class LeagueDetailSerializer(LeagueSerializer):
     members = MembershipSerializer(source='memberships', many=True, read_only=True)
     invite_code = serializers.CharField(read_only=True)
+    total_pot = serializers.SerializerMethodField()
 
     class Meta(LeagueSerializer.Meta):
-        fields = LeagueSerializer.Meta.fields + ('members', 'invite_code')
+        fields = LeagueSerializer.Meta.fields + ('members', 'invite_code', 'total_pot')
+
+    def get_total_pot(self, obj):
+        if not obj.buy_in_amount:
+            return None
+        bought_in_count = obj.memberships.filter(bought_in=True).count()
+        return float(obj.buy_in_amount) * bought_in_count
 
 
 class PerkSerializer(serializers.ModelSerializer):
