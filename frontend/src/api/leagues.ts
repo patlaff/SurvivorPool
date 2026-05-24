@@ -242,6 +242,7 @@ export interface PicksGridCastaway {
   is_eliminated: boolean
   eliminated_episode: number | null
   pick_count: number
+  total_points: number
 }
 
 export interface PicksGridPlayer {
