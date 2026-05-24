@@ -16,8 +16,21 @@ export interface League {
   is_test: boolean
   is_archived: boolean
   created_at: string
+  buy_in_amount: string | null
+  venmo_handle: string | null
   invite_code?: string
-  members?: { user: { id: number; display_name: string; avatar_url: string }; joined_at: string }[]
+  members?: { user: { id: number; display_name: string; avatar_url: string }; joined_at: string; bought_in: boolean }[]
+}
+
+export interface LeagueOverviewMember {
+  user: { id: number; display_name: string; avatar_url: string }
+  joined_at: string
+  pick_count: number
+  bought_in: boolean
+}
+
+export interface LeagueOverviewResponse {
+  members: LeagueOverviewMember[]
 }
 
 export interface Castaway {
@@ -276,5 +289,36 @@ export function useLeagueActivity(slug: string, enabled: boolean) {
     queryKey: ['league-activity', slug],
     queryFn: () => api.get(`/leagues/${slug}/activity/`).then(r => r.data),
     enabled,
+  })
+}
+
+export function useLeagueOverview(slug: string, enabled: boolean) {
+  return useQuery<LeagueOverviewResponse>({
+    queryKey: ['league-overview', slug],
+    queryFn: () => api.get(`/leagues/${slug}/overview/`).then(r => r.data),
+    enabled,
+  })
+}
+
+export interface LeagueSettingsPayload {
+  buy_in_amount?: string | null
+  venmo_handle?: string | null
+}
+
+export function useUpdateLeagueSettings(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: LeagueSettingsPayload) =>
+      api.patch(`/leagues/${slug}/`, payload).then(r => r.data as League),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['league', slug] }),
+  })
+}
+
+export function useToggleMemberBuyIn(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, bought_in }: { userId: number; bought_in: boolean }) =>
+      api.patch(`/leagues/${slug}/members/${userId}/buy-in/`, { bought_in }).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['league-overview', slug] }),
   })
 }

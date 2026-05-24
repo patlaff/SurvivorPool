@@ -12,7 +12,7 @@ class MembershipSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Membership
-        fields = ('user', 'joined_at')
+        fields = ('user', 'joined_at', 'bought_in')
 
 
 class LeagueSerializer(serializers.ModelSerializer):
@@ -26,7 +26,7 @@ class LeagueSerializer(serializers.ModelSerializer):
         model = League
         fields = ('id', 'name', 'slug', 'season_id', 'season_number', 'owner', 'member_count',
                   'draft_lock_date', 'draft_open', 'draft_close_at', 'draft_force_open',
-                  'is_test', 'is_archived', 'created_at')
+                  'is_test', 'is_archived', 'created_at', 'buy_in_amount', 'venmo_handle')
         read_only_fields = ('slug', 'created_at')
 
     def get_member_count(self, obj):

@@ -11,6 +11,8 @@ from .views import (
     LeagueJoinByCodeView,
     LeagueJoinView,
     LeagueListCreateView,
+    LeagueOverviewView,
+    MemberBuyInView,
     MyScoresView,
     PicksGridView,
     RosterView,
@@ -34,4 +36,6 @@ urlpatterns = [
     path('leagues/<slug:slug>/scores/<int:episode_number>/', EpisodeScoresView.as_view(), name='episode-scores'),
     path('leagues/<slug:slug>/activity/', LeagueActivityView.as_view(), name='league-activity'),
     path('leagues/<slug:slug>/picks-grid/', PicksGridView.as_view(), name='picks-grid'),
+    path('leagues/<slug:slug>/overview/', LeagueOverviewView.as_view(), name='league-overview'),
+    path('leagues/<slug:slug>/members/<int:user_id>/buy-in/', MemberBuyInView.as_view(), name='member-buy-in'),
 ]
