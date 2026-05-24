@@ -45,7 +45,6 @@ function CastawayLightbox({ castaway, onClose }: { castaway: Castaway; onClose: 
           <img
             src={castaway.image_url}
             alt={castaway.display_name || castaway.name}
-            referrerPolicy="no-referrer"
             className="w-48 h-48 rounded-full object-cover object-top ring-4 ring-survivor-orange"
           />
         ) : (
@@ -187,7 +186,6 @@ export default function DraftPage() {
                     <img
                       src={c.image_url}
                       alt={c.display_name || c.name}
-                      referrerPolicy="no-referrer"
                       className="w-14 h-14 object-cover object-top"
                       onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.nextElementSibling as HTMLElement | null)?.classList.remove('hidden') }}
                     />

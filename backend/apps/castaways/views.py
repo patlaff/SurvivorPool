@@ -1,14 +1,17 @@
 import json
 from pathlib import Path
 
+import requests as http_client
 from django.conf import settings
+from django.http import Http404, HttpResponse
 from rest_framework import generics
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Season, Castaway, Episode
 from .serializers import CastawaySerializer, EpisodeSerializer, SeasonSerializer
+from .wiki_images import HEADERS as FANDOM_HEADERS
 
 
 class SeasonCastawaysView(generics.ListAPIView):
@@ -47,6 +50,40 @@ class ActiveSeasonView(APIView):
             'season': SeasonSerializer(season).data,
             'episodes': EpisodeSerializer(episodes, many=True).data,
         })
+
+
+class CastawayImageProxyView(APIView):
+    """
+    GET /api/v1/castaways/<castaway_id>/image/
+
+    Proxies the castaway's headshot from the Fandom CDN through our own server.
+    Public (no auth) so browsers can load it via a plain <img> tag.
+    Browser-side result is cached for 24 h via Cache-Control.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = []  # image loads are not a security surface; exempt from rate limits
+
+    def get(self, request, castaway_id):
+        try:
+            castaway = Castaway.objects.get(castaway_id=castaway_id)
+        except Castaway.DoesNotExist:
+            raise Http404
+
+        if not castaway.image_url:
+            raise Http404
+
+        try:
+            resp = http_client.get(castaway.image_url, headers=FANDOM_HEADERS, timeout=10)
+        except Exception:
+            raise Http404
+
+        if resp.status_code != 200:
+            raise Http404
+
+        content_type = resp.headers.get('Content-Type', 'image/jpeg')
+        response = HttpResponse(resp.content, content_type=content_type)
+        response['Cache-Control'] = 'public, max-age=86400'
+        return response
 
 
 class PublicScoringConfigView(APIView):

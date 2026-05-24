@@ -68,7 +68,7 @@ export default function RosterViewPage() {
         {roster.slots.map(slot => (
           <div key={slot.slot_number} className="card flex items-center gap-3">
             {slot.castaway.image_url ? (
-              <img src={slot.castaway.image_url} alt={slot.castaway.name} referrerPolicy="no-referrer" className="w-12 h-12 rounded-full object-cover object-top flex-shrink-0" />
+              <img src={slot.castaway.image_url} alt={slot.castaway.name} className="w-12 h-12 rounded-full object-cover object-top flex-shrink-0" />
             ) : (
               <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
             )}
