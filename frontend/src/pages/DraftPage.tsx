@@ -180,7 +180,7 @@ export default function DraftPage() {
               <div className="flex items-start gap-3">
                 {/* Photo — click opens lightbox; stopPropagation prevents card toggle */}
                 <div
-                  className="relative group/photo flex-shrink-0 cursor-zoom-in"
+                  className="relative group/photo flex-shrink-0 cursor-pointer w-14 h-14 rounded-full overflow-hidden"
                   onClick={e => { e.stopPropagation(); setZoomedCastaway(c) }}
                 >
                   {c.image_url ? (
@@ -188,13 +188,13 @@ export default function DraftPage() {
                       src={c.image_url}
                       alt={c.display_name || c.name}
                       referrerPolicy="no-referrer"
-                      className="w-14 h-14 rounded-full object-cover object-top"
+                      className="w-14 h-14 object-cover object-top"
+                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.nextElementSibling as HTMLElement | null)?.classList.remove('hidden') }}
                     />
-                  ) : (
-                    <div className="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-400 dark:text-gray-500 text-xl">?</div>
-                  )}
-                  {/* Hover affordance — magnifier overlay */}
-                  <div className="absolute inset-0 rounded-full bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none">
+                  ) : null}
+                  <div className={`w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-400 dark:text-gray-500 text-xl${c.image_url ? ' hidden' : ''}`}>?</div>
+                  {/* Hover affordance — magnifier overlay (desktop only via hover media) */}
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none">
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0zm-6-3v6m-3-3h6" />
                     </svg>

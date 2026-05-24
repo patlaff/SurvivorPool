@@ -149,3 +149,15 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Site URL used in notification email links
 ADMIN_SITE_URL = os.environ.get('ADMIN_SITE_URL', 'http://localhost')
+
+# ── Reverse proxy (NGINX Proxy Manager) ──────────────────────────────────────
+# Trust the X-Forwarded-Proto header from the proxy so Django knows
+# the connection is HTTPS even though it only sees HTTP internally.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
+# Required by Django's CSRF middleware when the site is behind a proxy on HTTPS.
+# List every origin that will submit forms/API requests.
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    'CSRF_TRUSTED_ORIGINS', 'http://localhost'
+).split(',')

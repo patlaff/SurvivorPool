@@ -1,10 +1,16 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
 import { useAuth } from '../hooks/useAuth'
 
 export default function LoginPage() {
-  const { loginWithGoogle } = useAuth()
+  const { isAuthenticated, loginWithGoogle } = useAuth()
   const navigate = useNavigate()
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (isAuthenticated) navigate('/', { replace: true })
+  }, [isAuthenticated, navigate])
 
   return (
     <div className="min-h-screen bg-survivor-dark flex flex-col items-center justify-center gap-8 px-4">
@@ -22,15 +28,25 @@ export default function LoginPage() {
         <GoogleLogin
           onSuccess={async (cred) => {
             if (!cred.credential) return
-            await loginWithGoogle(cred.credential)
-            navigate('/')
+            setError(null)
+            try {
+              await loginWithGoogle(cred.credential)
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : 'Login failed. Please try again.'
+              setError(msg)
+              console.error('Login error:', err)
+            }
           }}
-          onError={() => console.error('Google login failed')}
+          onError={() => setError('Google sign-in failed. Please try again.')}
           theme="filled_black"
           shape="pill"
           size="large"
           text="signin_with"
         />
+
+        {error && (
+          <p className="text-red-400 text-sm text-center">{error}</p>
+        )}
       </div>
     </div>
   )
