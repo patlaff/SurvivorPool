@@ -11,6 +11,7 @@ class SeasonSerializer(serializers.ModelSerializer):
 
 class CastawaySerializer(serializers.ModelSerializer):
     display_name = serializers.CharField(read_only=True)
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Castaway
@@ -20,6 +21,11 @@ class CastawaySerializer(serializers.ModelSerializer):
             'image_url', 'original_tribe', 'tribe_color',
             'is_eliminated', 'eliminated_episode',
         )
+
+    def get_image_url(self, obj):
+        if not obj.image_url:
+            return ''
+        return f'/api/v1/castaways/{obj.castaway_id}/image/'
 
 
 class EpisodeSerializer(serializers.ModelSerializer):
