@@ -68,6 +68,19 @@ export default function InfoPage() {
               outlast, outplay, outwit!
             </p>
           </div>
+          <div className="card sm:col-span-2">
+            <h2 className="font-semibold text-lg mb-2">💸 Buy-ins (Optional)</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              League owners can optionally set a monetary buy-in and share a Venmo handle to collect
+              payments. If your league has a buy-in, you'll see the amount and Venmo handle at the
+              top of the league page.
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+              Buy-ins are not required — not every league will have one. Payment and buy-in tracking
+              is handled manually by the league owner outside the app: once you've paid, the owner
+              will mark you as bought in on their end.
+            </p>
+          </div>
         </div>
       </section>
 
