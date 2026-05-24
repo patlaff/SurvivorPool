@@ -59,6 +59,19 @@ class League(models.Model):
         help_text="Owner's Venmo handle for collecting buy-ins.",
     )
 
+    payout_first = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text='Percentage of the pot awarded to 1st place (must sum to 100 with 2nd and 3rd).',
+    )
+    payout_second = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text='Percentage of the pot awarded to 2nd place.',
+    )
+    payout_third = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text='Percentage of the pot awarded to 3rd place.',
+    )
+
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = _unique_slug(self.name)

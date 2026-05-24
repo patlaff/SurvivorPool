@@ -129,27 +129,49 @@ function LeagueOverviewTab({
   isLoading,
   buyInAmount,
   venmoHandle,
+  payoutFirst,
+  payoutSecond,
+  payoutThird,
 }: {
   slug: string
   members: LeagueOverviewMember[] | undefined
   isLoading: boolean
   buyInAmount: string | null
   venmoHandle: string | null
+  payoutFirst: number | null
+  payoutSecond: number | null
+  payoutThird: number | null
 }) {
   const [buyInInput, setBuyInInput] = useState(buyInAmount ?? '')
   const [venmoInput, setVenmoInput] = useState(venmoHandle ?? '')
+  const [p1, setP1] = useState(payoutFirst?.toString() ?? '')
+  const [p2, setP2] = useState(payoutSecond?.toString() ?? '')
+  const [p3, setP3] = useState(payoutThird?.toString() ?? '')
   const [settingsFeedback, setSettingsFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const updateSettings = useUpdateLeagueSettings(slug)
   const toggleBuyIn = useToggleMemberBuyIn(slug)
 
   const hasBuyIn = buyInInput.trim() !== ''
 
+  const payoutSum = [p1, p2, p3].reduce((acc, v) => acc + (parseInt(v) || 0), 0)
+  const anyPayoutFilled = p1 !== '' || p2 !== '' || p3 !== ''
+  const allPayoutsFilled = p1 !== '' && p2 !== '' && p3 !== ''
+  const payoutsValid = !anyPayoutFilled || (allPayoutsFilled && payoutSum === 100)
+  const canSave = payoutsValid
+
   const handleSaveSettings = async () => {
+    if (!canSave) return
+    let payoutPayload: { payout_first: number | null; payout_second: number | null; payout_third: number | null }
+    if (!hasBuyIn || !allPayoutsFilled) {
+      payoutPayload = { payout_first: null, payout_second: null, payout_third: null }
+    } else {
+      payoutPayload = { payout_first: parseInt(p1), payout_second: parseInt(p2), payout_third: parseInt(p3) }
+    }
     try {
       await updateSettings.mutateAsync({
         buy_in_amount: hasBuyIn ? buyInInput.trim() : null,
-        // Clear venmo if buy-in is removed
         venmo_handle: hasBuyIn && venmoInput.trim() !== '' ? venmoInput.trim() : null,
+        ...payoutPayload,
       })
       setSettingsFeedback({ type: 'success', message: 'Settings saved.' })
       setTimeout(() => setSettingsFeedback(null), 4000)
@@ -192,11 +214,50 @@ function LeagueOverviewTab({
           <button
             className="btn-primary text-xs px-3 py-1.5"
             onClick={handleSaveSettings}
-            disabled={updateSettings.isPending}
+            disabled={updateSettings.isPending || !canSave}
           >
             Save
           </button>
         </div>
+
+        {hasBuyIn && (
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-3">Payout structure (optional — must sum to 100%)</p>
+            <div className="flex flex-wrap gap-4 items-end">
+              {[
+                { label: '1st place (%)', value: p1, set: setP1 },
+                { label: '2nd place (%)', value: p2, set: setP2 },
+                { label: '3rd place (%)', value: p3, set: setP3 },
+              ].map(({ label, value, set }) => (
+                <div key={label} className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500 dark:text-gray-400">{label}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    placeholder="0"
+                    className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-survivor-orange focus:outline-none focus:ring-1 focus:ring-survivor-orange w-28"
+                    value={value}
+                    onChange={e => set(e.target.value)}
+                  />
+                </div>
+              ))}
+              {anyPayoutFilled && (
+                <span className={`text-sm font-semibold pb-1.5 ${payoutSum === 100 ? 'text-green-600' : 'text-red-500'}`}>
+                  = {payoutSum}%
+                </span>
+              )}
+            </div>
+            {anyPayoutFilled && !allPayoutsFilled && (
+              <p className="mt-1.5 text-xs text-red-500">Fill in all three places or leave all empty.</p>
+            )}
+            {allPayoutsFilled && payoutSum !== 100 && (
+              <p className="mt-1.5 text-xs text-red-500">Percentages must add up to exactly 100%.</p>
+            )}
+          </div>
+        )}
+
         {settingsFeedback && (
           <p className={`mt-2 text-xs ${settingsFeedback.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
             {settingsFeedback.message}
@@ -346,20 +407,48 @@ export default function LeaguePage() {
         </div>
       )}
 
-      {league?.buy_in_amount && (
-        <div className="card mb-6 flex flex-wrap items-center gap-4">
-          <span className="flex items-center gap-2 text-sm">
-            <span className="text-gray-500 dark:text-gray-400">Buy-in:</span>
-            <span className="font-semibold text-gray-800 dark:text-gray-200">${parseFloat(league.buy_in_amount).toFixed(2)}</span>
-          </span>
-          {league.venmo_handle && (
-            <span className="flex items-center gap-2 text-sm">
-              <span className="text-gray-500 dark:text-gray-400">Venmo:</span>
-              <span className="font-semibold text-gray-800 dark:text-gray-200">{league.venmo_handle}</span>
-            </span>
-          )}
-        </div>
-      )}
+      {league?.buy_in_amount && (() => {
+        const buyIn = parseFloat(league.buy_in_amount)
+        const pot = league.total_pot ?? 0
+        const hasPayouts = league.payout_first != null && league.payout_second != null && league.payout_third != null
+        return (
+          <div className="card mb-6 space-y-3">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              <span className="flex items-center gap-2 text-sm">
+                <span className="text-gray-500 dark:text-gray-400">Buy-in:</span>
+                <span className="font-semibold text-gray-800 dark:text-gray-200">${buyIn.toFixed(2)}</span>
+              </span>
+              {pot > 0 && (
+                <span className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Total pot:</span>
+                  <span className="font-semibold text-survivor-orange">${pot.toFixed(2)}</span>
+                </span>
+              )}
+              {league.venmo_handle && (
+                <span className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Venmo:</span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">{league.venmo_handle}</span>
+                </span>
+              )}
+            </div>
+            {hasPayouts && pot > 0 && (
+              <div className="flex flex-wrap gap-3 pt-1 border-t border-gray-100 dark:border-gray-700">
+                {([
+                  { place: '1st', pct: league.payout_first! },
+                  { place: '2nd', pct: league.payout_second! },
+                  { place: '3rd', pct: league.payout_third! },
+                ] as const).map(({ place, pct }) => (
+                  <span key={place} className="flex items-center gap-1.5 text-sm">
+                    <span className="text-gray-500 dark:text-gray-400">{place}:</span>
+                    <span className="font-semibold text-gray-800 dark:text-gray-200">${(pot * pct / 100).toFixed(2)}</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">({pct}%)</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {league?.owner?.id === user?.id && league?.invite_code && (
         <div className="card mb-6 flex items-center gap-4">
@@ -552,6 +641,9 @@ export default function LeaguePage() {
           isLoading={overviewLoading}
           buyInAmount={league?.buy_in_amount ?? null}
           venmoHandle={league?.venmo_handle ?? null}
+          payoutFirst={league?.payout_first ?? null}
+          payoutSecond={league?.payout_second ?? null}
+          payoutThird={league?.payout_third ?? null}
         />
       )}
 
