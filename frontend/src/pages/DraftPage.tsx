@@ -155,9 +155,9 @@ export default function DraftPage() {
 
       <div className="flex items-center gap-4 mb-4">
         <input className="input flex-1" placeholder="Search by name, hometown, occupation…" value={filter} onChange={e => setFilter(e.target.value)} />
-        <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{selected.size} / 5 selected</span>
+        <span className={`text-sm whitespace-nowrap font-medium ${selected.size === 5 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>{selected.size} / 5 selected</span>
         {draftOpen && (
-          <button className="btn-primary" onClick={handleSave} disabled={selected.size !== 5 || saveDraft.isPending}>
+          <button className="btn-primary" onClick={handleSave} disabled={selected.size === 0 || saveDraft.isPending}>
             {saved ? '✓ Saved' : 'Save Picks'}
           </button>
         )}
