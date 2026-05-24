@@ -59,6 +59,7 @@ function PicksGridTab({ data, isLoading }: { data: PicksGridResponse | undefined
               </th>
             ))}
             <th className="pb-2 pl-4 text-center font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">Total</th>
+            <th className="pb-2 pl-4 text-center font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">Pts</th>
           </tr>
         </thead>
         <tbody>
@@ -86,6 +87,9 @@ function PicksGridTab({ data, isLoading }: { data: PicksGridResponse | undefined
               ))}
               <td className="py-2 pl-4 text-center font-semibold text-gray-700 dark:text-gray-300">
                 {castaway.pick_count > 0 ? castaway.pick_count : <span className="text-gray-300 dark:text-gray-600">0</span>}
+              </td>
+              <td className="py-2 pl-4 text-center font-semibold text-gray-700 dark:text-gray-300">
+                {castaway.total_points > 0 ? castaway.total_points : <span className="text-gray-300 dark:text-gray-600">0</span>}
               </td>
             </tr>
           ))}

@@ -10,9 +10,10 @@ from rest_framework.views import APIView
 
 from .join_lockout import check_lockout, record_failure, clear_lockout
 
+from django.db.models import Sum
 from apps.castaways.models import Castaway, Episode
 from apps.castaways.serializers import CastawaySerializer
-from apps.scoring.models import PlayerEpisodeScore
+from apps.scoring.models import PlayerEpisodeScore, ScoringEvent
 from .models import DraftSave, League, Membership, Perk, Roster, RosterSlot
 from .permissions import IsLeagueMember, IsLeagueOwner
 from .serializers import (
@@ -562,6 +563,13 @@ class PicksGridView(APIView):
         )
         castaway_index = {c.castaway_id: i for i, c in enumerate(castaways)}
 
+        points_by_castaway = {
+            row['castaway__castaway_id']: row['total']
+            for row in ScoringEvent.objects.filter(castaway__season=league.season)
+            .values('castaway__castaway_id')
+            .annotate(total=Sum('points'))
+        }
+
         rosters = (
             Roster.objects.filter(league=league)
             .select_related('user')
@@ -620,6 +628,7 @@ class PicksGridView(APIView):
                 'is_eliminated': c.is_eliminated,
                 'eliminated_episode': c.eliminated_episode,
                 'pick_count': pick_counts[i],
+                'total_points': points_by_castaway.get(c.castaway_id, 0),
             }
             for i, c in enumerate(castaways)
         ]
