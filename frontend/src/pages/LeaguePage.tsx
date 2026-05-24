@@ -138,11 +138,14 @@ function LeagueOverviewTab({
   const updateSettings = useUpdateLeagueSettings(slug)
   const toggleBuyIn = useToggleMemberBuyIn(slug)
 
+  const hasBuyIn = buyInInput.trim() !== ''
+
   const handleSaveSettings = async () => {
     try {
       await updateSettings.mutateAsync({
-        buy_in_amount: buyInInput.trim() === '' ? null : buyInInput.trim(),
-        venmo_handle: venmoInput.trim() === '' ? null : venmoInput.trim(),
+        buy_in_amount: hasBuyIn ? buyInInput.trim() : null,
+        // Clear venmo if buy-in is removed
+        venmo_handle: hasBuyIn && venmoInput.trim() !== '' ? venmoInput.trim() : null,
       })
       setSettingsFeedback({ type: 'success', message: 'Settings saved.' })
       setTimeout(() => setSettingsFeedback(null), 4000)
@@ -170,16 +173,18 @@ function LeagueOverviewTab({
               onChange={e => setBuyInInput(e.target.value)}
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 dark:text-gray-400">Venmo handle</label>
-            <input
-              type="text"
-              placeholder="@yourhandle"
-              className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-survivor-orange focus:outline-none focus:ring-1 focus:ring-survivor-orange w-44"
-              value={venmoInput}
-              onChange={e => setVenmoInput(e.target.value)}
-            />
-          </div>
+          {hasBuyIn && (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 dark:text-gray-400">Venmo handle</label>
+              <input
+                type="text"
+                placeholder="@yourhandle"
+                className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-survivor-orange focus:outline-none focus:ring-1 focus:ring-survivor-orange w-44"
+                value={venmoInput}
+                onChange={e => setVenmoInput(e.target.value)}
+              />
+            </div>
+          )}
           <button
             className="btn-primary text-xs px-3 py-1.5"
             onClick={handleSaveSettings}
@@ -337,14 +342,12 @@ export default function LeaguePage() {
         </div>
       )}
 
-      {(league?.buy_in_amount || league?.venmo_handle) && (
+      {league?.buy_in_amount && (
         <div className="card mb-6 flex flex-wrap items-center gap-4">
-          {league.buy_in_amount && (
-            <span className="flex items-center gap-2 text-sm">
-              <span className="text-gray-500 dark:text-gray-400">Buy-in:</span>
-              <span className="font-semibold text-gray-800 dark:text-gray-200">${parseFloat(league.buy_in_amount).toFixed(2)}</span>
-            </span>
-          )}
+          <span className="flex items-center gap-2 text-sm">
+            <span className="text-gray-500 dark:text-gray-400">Buy-in:</span>
+            <span className="font-semibold text-gray-800 dark:text-gray-200">${parseFloat(league.buy_in_amount).toFixed(2)}</span>
+          </span>
           {league.venmo_handle && (
             <span className="flex items-center gap-2 text-sm">
               <span className="text-gray-500 dark:text-gray-400">Venmo:</span>
