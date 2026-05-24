@@ -181,13 +181,13 @@ class DraftView(APIView):
             )
 
         castaway_ids = request.data.get('castaway_ids', [])
-        if len(castaway_ids) != 5:
-            return Response({'detail': 'You must pick exactly 5 castaways.'}, status=status.HTTP_400_BAD_REQUEST)
-        if len(set(castaway_ids)) != 5:
+        if len(castaway_ids) == 0 or len(castaway_ids) > 5:
+            return Response({'detail': 'You must pick between 1 and 5 castaways.'}, status=status.HTTP_400_BAD_REQUEST)
+        if len(set(castaway_ids)) != len(castaway_ids):
             return Response({'detail': 'Duplicate castaways in selection.'}, status=status.HTTP_400_BAD_REQUEST)
 
         castaways = Castaway.objects.filter(castaway_id__in=castaway_ids, season=league.season)
-        if castaways.count() != 5:
+        if castaways.count() != len(castaway_ids):
             return Response({'detail': 'One or more castaways not found in this season.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if not league.is_test and not league.draft_force_open:
