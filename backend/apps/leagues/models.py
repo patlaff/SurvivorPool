@@ -50,6 +50,15 @@ class League(models.Model):
         help_text='When True, the draft is open regardless of draft_close_at or season lock date.',
     )
 
+    buy_in_amount = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text='Optional monetary buy-in amount for the league.',
+    )
+    venmo_handle = models.CharField(
+        max_length=100, null=True, blank=True,
+        help_text="Owner's Venmo handle for collecting buy-ins.",
+    )
+
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = _unique_slug(self.name)
@@ -65,6 +74,7 @@ class Membership(models.Model):
     league = models.ForeignKey(League, on_delete=models.CASCADE, related_name='memberships')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='memberships')
     joined_at = models.DateTimeField(auto_now_add=True)
+    bought_in = models.BooleanField(default=False, help_text='Whether this member has paid the league buy-in.')
 
     class Meta:
         unique_together = ('league', 'user')

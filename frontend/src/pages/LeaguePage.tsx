@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { useLeague, useLeaderboard, useDraftWindow, useLeagueActivity, usePicksGrid, type DraftWindowPayload, type ActivityEvent, type PicksGridResponse } from '../api/leagues'
+import { useLeague, useLeaderboard, useDraftWindow, useLeagueActivity, usePicksGrid, useLeagueOverview, useUpdateLeagueSettings, useToggleMemberBuyIn, type DraftWindowPayload, type ActivityEvent, type PicksGridResponse, type LeagueOverviewMember } from '../api/leagues'
 import { useAuth } from '../hooks/useAuth'
 
 const COLORS = ['#E8521A', '#F0A500', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
@@ -123,6 +123,137 @@ function ActivityLogTab({ events, isLoading }: { events: ActivityEvent[] | undef
   )
 }
 
+function LeagueOverviewTab({
+  slug,
+  members,
+  isLoading,
+  buyInAmount,
+  venmoHandle,
+}: {
+  slug: string
+  members: LeagueOverviewMember[] | undefined
+  isLoading: boolean
+  buyInAmount: string | null
+  venmoHandle: string | null
+}) {
+  const [buyInInput, setBuyInInput] = useState(buyInAmount ?? '')
+  const [venmoInput, setVenmoInput] = useState(venmoHandle ?? '')
+  const [settingsFeedback, setSettingsFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const updateSettings = useUpdateLeagueSettings(slug)
+  const toggleBuyIn = useToggleMemberBuyIn(slug)
+
+  const hasBuyIn = buyInInput.trim() !== ''
+
+  const handleSaveSettings = async () => {
+    try {
+      await updateSettings.mutateAsync({
+        buy_in_amount: hasBuyIn ? buyInInput.trim() : null,
+        // Clear venmo if buy-in is removed
+        venmo_handle: hasBuyIn && venmoInput.trim() !== '' ? venmoInput.trim() : null,
+      })
+      setSettingsFeedback({ type: 'success', message: 'Settings saved.' })
+      setTimeout(() => setSettingsFeedback(null), 4000)
+    } catch {
+      setSettingsFeedback({ type: 'error', message: 'Failed to save settings.' })
+      setTimeout(() => setSettingsFeedback(null), 4000)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Buy-in settings */}
+      <div className="card">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Buy-in Settings</h2>
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 dark:text-gray-400">Buy-in amount ($)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="e.g. 20"
+              className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-survivor-orange focus:outline-none focus:ring-1 focus:ring-survivor-orange w-36"
+              value={buyInInput}
+              onChange={e => setBuyInInput(e.target.value)}
+            />
+          </div>
+          {hasBuyIn && (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 dark:text-gray-400">Venmo handle</label>
+              <input
+                type="text"
+                placeholder="@yourhandle"
+                className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:border-survivor-orange focus:outline-none focus:ring-1 focus:ring-survivor-orange w-44"
+                value={venmoInput}
+                onChange={e => setVenmoInput(e.target.value)}
+              />
+            </div>
+          )}
+          <button
+            className="btn-primary text-xs px-3 py-1.5"
+            onClick={handleSaveSettings}
+            disabled={updateSettings.isPending}
+          >
+            Save
+          </button>
+        </div>
+        {settingsFeedback && (
+          <p className={`mt-2 text-xs ${settingsFeedback.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+            {settingsFeedback.message}
+          </p>
+        )}
+      </div>
+
+      {/* Members table */}
+      <div>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Members</h2>
+        {isLoading && <p className="text-gray-400 dark:text-gray-500 py-4 text-center">Loading members…</p>}
+        {!isLoading && members && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+                  <th className="pb-2 pr-4">Player</th>
+                  <th className="pb-2 pr-4 text-center">Picks made</th>
+                  <th className="pb-2 text-center">Bought in?</th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map(member => (
+                  <tr key={member.user.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="py-3 pr-4">
+                      <span className="flex items-center gap-2">
+                        {member.user.avatar_url && (
+                          <img src={member.user.avatar_url} className="w-6 h-6 rounded-full" alt="" />
+                        )}
+                        <span>{member.user.display_name}</span>
+                      </span>
+                    </td>
+                    <td className="py-3 pr-4 text-center font-medium">
+                      {member.pick_count > 0
+                        ? <span className="text-gray-800 dark:text-gray-200">{member.pick_count}</span>
+                        : <span className="text-gray-400 dark:text-gray-500">0</span>
+                      }
+                    </td>
+                    <td className="py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={member.bought_in}
+                        onChange={e => toggleBuyIn.mutate({ userId: member.user.id, bought_in: e.target.checked })}
+                        className="w-4 h-4 accent-survivor-orange cursor-pointer"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function formatLastUpdated(isoString: string): string {
   const diff = Date.now() - new Date(isoString).getTime()
   const hours = Math.floor(diff / 3600000)
@@ -138,7 +269,7 @@ export default function LeaguePage() {
   const { user } = useAuth()
   const { data: league } = useLeague(slug!, user?.id)
   const { data: leaderboardData, isLoading } = useLeaderboard(slug!)
-  const [tab, setTab] = useState<'leaderboard' | 'chart' | 'picks' | 'activity'>('leaderboard')
+  const [tab, setTab] = useState<'leaderboard' | 'chart' | 'picks' | 'activity' | 'overview'>('leaderboard')
   const draftWindowMutation = useDraftWindow(slug!)
   const [scheduleInput, setScheduleInput] = useState('')
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -146,6 +277,7 @@ export default function LeaguePage() {
   const isOwner = user?.id === league?.owner?.id
   const { data: activityData, isLoading: activityLoading } = useLeagueActivity(slug!, isOwner)
   const { data: picksGridData, isLoading: picksGridLoading } = usePicksGrid(slug!)
+  const { data: overviewData, isLoading: overviewLoading } = useLeagueOverview(slug!, isOwner)
 
   const handleDraftWindowAction = async (payload: DraftWindowPayload) => {
     try {
@@ -211,6 +343,21 @@ export default function LeaguePage() {
       {league?.is_archived && (
         <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-6 text-sm text-gray-600 dark:text-gray-400">
           This league has concluded. All scores and rosters are preserved as a read-only record.
+        </div>
+      )}
+
+      {league?.buy_in_amount && (
+        <div className="card mb-6 flex flex-wrap items-center gap-4">
+          <span className="flex items-center gap-2 text-sm">
+            <span className="text-gray-500 dark:text-gray-400">Buy-in:</span>
+            <span className="font-semibold text-gray-800 dark:text-gray-200">${parseFloat(league.buy_in_amount).toFixed(2)}</span>
+          </span>
+          {league.venmo_handle && (
+            <span className="flex items-center gap-2 text-sm">
+              <span className="text-gray-500 dark:text-gray-400">Venmo:</span>
+              <span className="font-semibold text-gray-800 dark:text-gray-200">{league.venmo_handle}</span>
+            </span>
+          )}
         </div>
       )}
 
@@ -303,15 +450,18 @@ export default function LeaguePage() {
         {isOwner && (
           <button className={`pb-2 text-sm font-medium ${tab === 'activity' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500 dark:text-gray-400'}`} onClick={() => setTab('activity')}>Activity Log</button>
         )}
+        {isOwner && (
+          <button className={`pb-2 text-sm font-medium ${tab === 'overview' ? 'border-b-2 border-survivor-orange text-survivor-orange' : 'text-gray-500 dark:text-gray-400'}`} onClick={() => setTab('overview')}>League Overview</button>
+        )}
       </div>
 
-      {isStale && tab !== 'activity' && tab !== 'picks' && (
+      {isStale && tab !== 'activity' && tab !== 'picks' && tab !== 'overview' && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 text-sm text-yellow-800">
           Scores haven't updated in over 8 days. The data source may be lagging.
         </div>
       )}
 
-      {isLoading && tab !== 'activity' && tab !== 'picks' && <div className="text-gray-400 dark:text-gray-500 py-8 text-center">Loading scores…</div>}
+      {isLoading && tab !== 'activity' && tab !== 'picks' && tab !== 'overview' && <div className="text-gray-400 dark:text-gray-500 py-8 text-center">Loading scores…</div>}
 
       {tab === 'leaderboard' && leaderboard && (
         <div className="overflow-x-auto">
@@ -383,7 +533,7 @@ export default function LeaguePage() {
         </div>
       )}
 
-      {leaderboard?.length === 0 && tab !== 'activity' && tab !== 'picks' && (
+      {leaderboard?.length === 0 && tab !== 'activity' && tab !== 'picks' && tab !== 'overview' && (
         <p className="text-center text-gray-400 dark:text-gray-500 py-8">No episodes scored yet.</p>
       )}
 
@@ -395,7 +545,17 @@ export default function LeaguePage() {
         <ActivityLogTab events={activityData} isLoading={activityLoading} />
       )}
 
-      {lastScoredAt && tab !== 'activity' && tab !== 'picks' && (
+      {tab === 'overview' && isOwner && (
+        <LeagueOverviewTab
+          slug={slug!}
+          members={overviewData?.members}
+          isLoading={overviewLoading}
+          buyInAmount={league?.buy_in_amount ?? null}
+          venmoHandle={league?.venmo_handle ?? null}
+        />
+      )}
+
+      {lastScoredAt && tab !== 'activity' && tab !== 'picks' && tab !== 'overview' && (
         <p className="mt-4 text-xs text-gray-400 dark:text-gray-500 text-right">Last updated {formatLastUpdated(lastScoredAt)}</p>
       )}
     </div>

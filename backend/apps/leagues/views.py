@@ -642,6 +642,73 @@ class PicksGridView(APIView):
         })
 
 
+class LeagueOverviewView(APIView):
+    """
+    GET /leagues/<slug>/overview/
+
+    Owner-only. Returns all league members with their pick counts and buy-in status.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, slug):
+        league = get_object_or_404(League, slug=slug)
+        if league.owner != request.user:
+            return Response(
+                {'detail': 'Only the league owner can view the league overview.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        roster_pick_counts = {
+            r.user_id: r.slots.count()
+            for r in Roster.objects.filter(league=league).prefetch_related('slots')
+        }
+
+        members = []
+        for membership in (
+            Membership.objects.filter(league=league)
+            .select_related('user')
+            .order_by('joined_at')
+        ):
+            members.append({
+                'user': {
+                    'id': membership.user.id,
+                    'display_name': membership.user.display_name,
+                    'avatar_url': membership.user.avatar_url,
+                },
+                'joined_at': membership.joined_at,
+                'pick_count': roster_pick_counts.get(membership.user_id, 0),
+                'bought_in': membership.bought_in,
+            })
+
+        return Response({'members': members})
+
+
+class MemberBuyInView(APIView):
+    """
+    PATCH /leagues/<slug>/members/<user_id>/buy-in/
+
+    Owner-only. Toggles the bought_in flag for a league member.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, slug, user_id):
+        league = get_object_or_404(League, slug=slug)
+        if league.owner != request.user:
+            return Response(
+                {'detail': 'Only the league owner can update buy-in status.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        membership = get_object_or_404(Membership, league=league, user_id=user_id)
+        bought_in = request.data.get('bought_in')
+        if bought_in is None:
+            return Response({'detail': 'Provide bought_in (true/false).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        membership.bought_in = bool(bought_in)
+        membership.save(update_fields=['bought_in'])
+        return Response({'bought_in': membership.bought_in})
+
+
 class MyScoresView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = EpisodeScoreSerializer
