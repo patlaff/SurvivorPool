@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useDarkMode } from '../hooks/useDarkMode'
+import { Footer } from './Footer'
 
 export function Layout() {
   const { user, logout } = useAuth()
@@ -156,6 +157,7 @@ export function Layout() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Outlet />
       </main>
+      <Footer />
     </div>
   )
 }

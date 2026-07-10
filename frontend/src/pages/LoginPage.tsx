@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
 import { useAuth } from '../hooks/useAuth'
+import { Footer } from '../components/Footer'
 
 export default function LoginPage() {
   const { isAuthenticated, loginWithGoogle } = useAuth()
@@ -13,7 +14,8 @@ export default function LoginPage() {
   }, [isAuthenticated, navigate])
 
   return (
-    <div className="min-h-screen bg-survivor-dark flex flex-col items-center justify-center gap-8 px-4">
+    <div className="min-h-screen bg-survivor-dark flex flex-col items-center px-4">
+      <div className="flex-1 flex flex-col items-center justify-center gap-8 w-full">
       <div className="text-center">
         <h1 className="text-5xl font-bold text-survivor-orange mb-2">🔥 SurvivorPool</h1>
         <p className="text-gray-400 text-lg">Outwit. Outplay. Outdraft.</p>
@@ -48,6 +50,8 @@ export default function LoginPage() {
           <p className="text-red-400 text-sm text-center">{error}</p>
         )}
       </div>
+      </div>
+      <Footer />
     </div>
   )
 }
