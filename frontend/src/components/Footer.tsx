@@ -1,17 +1,17 @@
-// Your Buy Me a Coffee username — the part after buymeacoffee.com/ in your page URL.
-// e.g. if your page is https://www.buymeacoffee.com/survivorpool, this is "survivorpool".
-const BUYMEACOFFEE_USERNAME = 'yourusername'
+// Buy Me a Coffee account slug — the part after buymeacoffee.com/ in your page URL.
+const BUYMEACOFFEE_SLUG = 'patlaff'
 
 export function Footer() {
   return (
     <footer className="border-t border-gray-200 dark:border-gray-700 py-6 px-4">
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-3 text-sm text-gray-500 dark:text-gray-400">
         <span>Enjoying SurvivorPool?</span>
         <a
-          href={`https://www.buymeacoffee.com/${BUYMEACOFFEE_USERNAME}`}
+          href={`https://www.buymeacoffee.com/${BUYMEACOFFEE_SLUG}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 rounded-full bg-survivor-gold px-4 py-1.5 font-semibold text-survivor-dark shadow-sm transition-colors hover:bg-[#d99400]"
+          aria-label="Buy me a coffee"
+          className="inline-flex items-center gap-2 rounded-lg border border-black bg-[#FFDD00] px-4 py-2 font-semibold text-black shadow-sm transition-transform hover:-translate-y-0.5"
         >
           <span aria-hidden="true">☕</span>
           Buy me a coffee
