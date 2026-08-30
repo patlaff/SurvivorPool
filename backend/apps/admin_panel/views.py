@@ -382,6 +382,75 @@ class AdminProgressSeasonView(APIView):
         })
 
 
+# ── Admin: Force a season-data refresh ────────────────────────────────────────
+
+class AdminRefreshSeasonDataView(APIView):
+    """
+    POST /api/v1/admin/refresh-season-data/
+
+    Runs the daily sync on demand: re-syncs the active season from the survivoR
+    dataset, then probes for next-season castaways (sending the detection emails
+    if this is the first time they have appeared).  Use this between seasons when
+    the next cast may have landed since the last scheduled run.
+    """
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request):
+        from apps.castaways.models import Episode
+        from apps.scoring.tasks import _probe_next_season, _sync_season
+
+        active_season = Season.objects.filter(is_active=True, version='US').first()
+        if active_season is None:
+            return Response({'detail': 'No active season found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        season_number = active_season.season_number
+        next_num = season_number + 1
+        was_detected = active_season.next_detected_at is not None
+
+        try:
+            _sync_season(season_number)
+        except Exception as exc:
+            logger.exception('AdminRefreshSeasonDataView: failed to sync S%d', season_number)
+            return Response(
+                {'detail': f'Sync of Season {season_number} failed: {exc}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        try:
+            next_castaways = _probe_next_season(active_season, force=True)
+        except Exception as exc:
+            logger.exception('AdminRefreshSeasonDataView: failed to probe S%d', next_num)
+            return Response(
+                {'detail': f'Season {season_number} re-synced, but the check for Season {next_num} data failed: {exc}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        active_season.refresh_from_db()
+        castaway_count = Castaway.objects.filter(season=active_season).count()
+        episode_count = Episode.objects.filter(season=active_season).count()
+        newly_detected = active_season.next_detected_at is not None and not was_detected
+
+        synced = f'Re-synced Season {season_number} ({castaway_count} castaways, {episode_count} episodes).'
+        if newly_detected:
+            detail = f'{synced} Season {next_num} data detected — {next_castaways} castaway(s) in the dataset.'
+        elif next_castaways:
+            detail = f'{synced} Season {next_num} has {next_castaways} castaway(s) in the dataset.'
+        else:
+            detail = f'{synced} No Season {next_num} data yet.'
+
+        return Response({
+            'detail': detail,
+            'season_number': season_number,
+            'castaways': castaway_count,
+            'episodes': episode_count,
+            'next_season_number': next_num,
+            'next_season_castaways': next_castaways,
+            'next_detected': active_season.next_detected_at is not None,
+            'newly_detected': newly_detected,
+            'next_detected_at': active_season.next_detected_at,
+        })
+
+
 # ── Admin: Score all unscored past episodes ───────────────────────────────────
 
 class AdminScoreUnscoredView(APIView):

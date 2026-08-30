@@ -6,6 +6,7 @@ import {
   useUpdateCastawayAlias,
   useArchiveSeason,
   useProgressSeason,
+  useRefreshSeasonData,
   useUnarchiveSeason,
   useCreateTestLeague,
   useScoringConfig,
@@ -70,12 +71,15 @@ function LeaguesTab() {
   const progressSeason = useProgressSeason()
   const unarchiveSeason = useUnarchiveSeason()
   const createTestLeague = useCreateTestLeague()
+  const refreshSeasonData = useRefreshSeasonData()
 
   const [newName, setNewName] = useState('')
   const [created, setCreated] = useState<{ slug: string; invite_code: string; name: string } | null>(null)
   const [createError, setCreateError] = useState('')
   const [actionMsg, setActionMsg] = useState('')
   const [pendingAction, setPendingAction] = useState(false)
+  const [refreshMsg, setRefreshMsg] = useState('')
+  const [refreshFailed, setRefreshFailed] = useState(false)
 
   const activeLeagues = leagues?.filter(l => !l.is_archived) ?? []
   const archivedLeagues = leagues?.filter(l => l.is_archived) ?? []
@@ -122,6 +126,18 @@ function LeaguesTab() {
     }
   }
 
+  async function handleRefresh() {
+    setRefreshMsg('')
+    setRefreshFailed(false)
+    try {
+      const result = await refreshSeasonData.mutateAsync()
+      setRefreshMsg(result.detail)
+    } catch {
+      setRefreshFailed(true)
+      setRefreshMsg('Refresh failed — check backend logs.')
+    }
+  }
+
   async function handleUnarchive() {
     setActionMsg('')
     try {
@@ -149,14 +165,34 @@ function LeaguesTab() {
               }
             </p>
           </div>
-          <div className="shrink-0">
+          <div className="shrink-0 flex flex-col items-end gap-2">
             {allowsNewLeagues
               ? <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">● Active</span>
               : nextDetectedAt
                 ? <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">● Next Season Ready</span>
                 : <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">● Dormant</span>
             }
+            <button
+              className="btn-secondary text-xs px-3 py-1.5 whitespace-nowrap"
+              onClick={handleRefresh}
+              disabled={refreshSeasonData.isPending || ACTIVE_SEASON === 0}
+              title={`Re-sync Season ${ACTIVE_SEASON || '—'} and check the dataset for Season ${nextNum} data`}
+            >
+              {refreshSeasonData.isPending ? 'Refreshing…' : '↻ Refresh Data'}
+            </button>
           </div>
+        </div>
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            The daily sync runs at 20:00 PT. Refresh Data runs it now — re-pulls castaways and
+            episodes for the current season and checks whether next-season data has appeared in the
+            dataset. Takes up to a minute.
+          </p>
+          {refreshMsg && (
+            <p className={`text-sm mt-2 ${refreshFailed ? 'text-red-600' : 'text-green-600'}`}>
+              {refreshMsg}
+            </p>
+          )}
         </div>
       </div>
 
@@ -209,7 +245,8 @@ function LeaguesTab() {
         <div className="card mb-6">
           <p className="text-sm font-medium text-gray-500 dark:text-gray-400">⏳ Watching for Season {nextNum} data…</p>
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-            The daily sync checks automatically at 20:00 PT. You'll get an email when it appears.
+            The daily sync checks automatically at 20:00 PT and you'll get an email when it appears —
+            or hit Refresh Data above to check right now.
           </p>
           <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
             <span className="text-xs text-gray-400 dark:text-gray-500 italic">For testing only</span>

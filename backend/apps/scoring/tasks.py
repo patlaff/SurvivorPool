@@ -188,12 +188,16 @@ def _sync_season(season_number: int) -> None:
     )
 
 
-def _probe_next_season(active_season) -> None:
+def _probe_next_season(active_season, force: bool = False) -> int:
     """
     Check whether castaways for active_season.season_number+1 have appeared in the
     survivoR dataset.  Sends email notifications on first detection and when the cast
     looks complete (≥ COMPLETE_THRESHOLD castaways).  Does nothing if both notifications
-    have already been sent.
+    have already been sent, unless force is True — an on-demand admin refresh still
+    wants the current castaway count.
+
+    Returns the number of next-season castaways found in the dataset (0 if none, or
+    if the dataset could not be fetched).
     """
     from django.utils import timezone
     from apps.scoring.emails import notify_next_season_detected, notify_next_season_complete
@@ -202,19 +206,20 @@ def _probe_next_season(active_season) -> None:
     next_num = active_season.season_number + 1
 
     # Nothing left to check — both notifications already sent
-    if (active_season.next_detected_at is not None
+    if (not force
+            and active_season.next_detected_at is not None
             and active_season.next_complete_notified_at is not None):
-        return
+        return 0
 
     try:
         raw = _fetch_json('castaways')
         next_rows = _filter_us_season(raw, next_num)
     except Exception:
         logger.debug('_probe_next_season: could not fetch castaways for S%d', next_num)
-        return
+        return 0
 
     if next_rows.empty:
-        return
+        return 0
 
     count = len(next_rows)
     update_fields = []
@@ -233,6 +238,8 @@ def _probe_next_season(active_season) -> None:
 
     if update_fields:
         active_season.save(update_fields=update_fields)
+
+    return count
 
 
 @shared_task(name='apps.scoring.tasks.sync_season_data')
