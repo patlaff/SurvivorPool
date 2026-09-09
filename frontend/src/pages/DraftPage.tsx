@@ -148,7 +148,9 @@ export default function DraftPage() {
 
       {!draftOpen && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4 text-sm text-yellow-800">
-          The draft has closed. Rosters are locked for the season.
+          {league && !league.season_has_data
+            ? `Season ${league.season_number} hasn't been announced yet. The draft opens once the cast is published.`
+            : 'The draft has closed. Rosters are locked for the season.'}
         </div>
       )}
 

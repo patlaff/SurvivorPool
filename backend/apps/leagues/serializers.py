@@ -21,10 +21,12 @@ class LeagueSerializer(serializers.ModelSerializer):
     draft_lock_date = serializers.SerializerMethodField()
     draft_open = serializers.SerializerMethodField()
     season_number = serializers.IntegerField(source='season.season_number', read_only=True)
+    season_has_data = serializers.BooleanField(source='season.has_data', read_only=True)
 
     class Meta:
         model = League
-        fields = ('id', 'name', 'slug', 'season_id', 'season_number', 'owner', 'member_count',
+        fields = ('id', 'name', 'slug', 'season_id', 'season_number', 'season_has_data',
+                  'owner', 'member_count',
                   'draft_lock_date', 'draft_open', 'draft_close_at', 'draft_force_open',
                   'is_test', 'is_archived', 'created_at', 'buy_in_amount', 'venmo_handle',
                   'payout_first', 'payout_second', 'payout_third')

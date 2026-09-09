@@ -7,6 +7,7 @@ export interface League {
   slug: string
   season_id: number
   season_number: number
+  season_has_data: boolean
   owner: { id: number; display_name: string; avatar_url: string }
   member_count: number
   draft_lock_date: string | null

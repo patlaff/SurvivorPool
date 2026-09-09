@@ -22,7 +22,7 @@ from .serializers import (
     LeagueSerializer,
     RosterSerializer,
 )
-from .utils import is_draft_open
+from .utils import is_draft_open, joinable_season
 
 
 def _get_league_for_member(slug, user):
@@ -41,9 +41,10 @@ class LeagueListCreateView(generics.ListCreateAPIView):
         return League.objects.filter(memberships__user=self.request.user).select_related('season', 'owner')
 
     def perform_create(self, serializer):
-        from apps.castaways.models import Season
         from rest_framework.exceptions import ValidationError
-        season = Season.objects.filter(is_active=True, version='US').first()
+        # Between seasons this returns an empty placeholder row for the upcoming
+        # season, so a league can be set up (members, buy-in) before its cast lands.
+        season = joinable_season()
         if season is None:
             raise ValidationError(
                 'No active US season found. Run "sync_season <number>" to load season data first.'
@@ -68,10 +69,23 @@ class LeagueDetailView(generics.RetrieveUpdateAPIView):
         get_object_or_404(Membership, league=obj, user=self.request.user)
         return obj
 
+    # Draft-related settings are meaningless until the season has a cast; everything
+    # else (name, buy-in, payouts) can be prepared during the between-seasons gap.
+    PRESEASON_LOCKED_FIELDS = ('draft_close_at', 'draft_force_open', 'is_test')
+
     def update(self, request, *args, **kwargs):
         obj = self.get_object()
         if obj.owner != request.user:
             return Response({'detail': 'Only the league owner can edit.'}, status=status.HTTP_403_FORBIDDEN)
+        if not obj.season.has_data:
+            blocked = [f for f in self.PRESEASON_LOCKED_FIELDS if f in request.data]
+            if blocked:
+                return Response(
+                    {'detail': f'Season {obj.season.season_number} data has not been published yet — '
+                               f'{", ".join(blocked)} cannot be changed. '
+                               'Invites and buy-in settings are available now.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         return super().update(request, *args, **kwargs)
 
 
@@ -281,6 +295,13 @@ class DraftWindowView(APIView):
             return Response(
                 {'detail': 'Only the league owner can update the draft window.'},
                 status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not league.season.has_data:
+            return Response(
+                {'detail': f'Season {league.season.season_number} data has not been published yet — '
+                           'the draft cannot be opened.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         serializer = _DraftWindowSerializer(data=request.data)

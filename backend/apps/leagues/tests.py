@@ -7,6 +7,7 @@ from apps.accounts.models import User
 from apps.castaways.models import Castaway, Episode, Season
 from apps.scoring.models import PlayerEpisodeScore
 from .models import League, Membership, Perk, Roster, RosterSlot
+from .utils import is_draft_open
 
 
 def make_user(n):
@@ -186,3 +187,135 @@ class PerkAPITest(TestCase):
         self.assertTrue(
             RosterSlot.objects.filter(roster=other_roster, castaway=self.castaways[0]).exists()
         )
+
+
+class PreseasonLeagueTest(TestCase):
+    """
+    Leagues can be created and set up during the between-seasons gap, before the
+    next season's cast is published.  Everything that needs a cast — above all the
+    draft — stays shut until the data lands.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        # The finished season: still active, but dormant and no longer taking leagues.
+        self.dormant = Season.objects.create(
+            season_number=49, name='S49', version='US',
+            is_active=True, allows_new_leagues=False,
+            draft_lock_date=date.today() - timedelta(days=60),
+        )
+        Castaway.objects.create(castaway_id='US4901', season=self.dormant, name='Old Castaway')
+        self.user = make_user(30)
+        self.client.force_authenticate(user=self.user)
+
+    def _preseason_league(self):
+        r = self.client.post('/api/v1/leagues/', {'name': 'Next Year'}, format='json')
+        self.assertEqual(r.status_code, 201, r.content)
+        # The frontend keys its preseason UI off these two fields.
+        self.assertIs(r.data['season_has_data'], False)
+        self.assertIs(r.data['draft_open'], False)
+        return League.objects.get(name='Next Year')
+
+    # ── Creation ─────────────────────────────────────────────────────────────
+
+    def test_league_can_be_created_between_seasons(self):
+        league = self._preseason_league()
+        self.assertTrue(Membership.objects.filter(league=league, user=self.user).exists())
+
+    def test_preseason_league_attaches_to_next_season_not_the_dormant_one(self):
+        league = self._preseason_league()
+        self.assertEqual(league.season.season_number, 50)
+        self.assertFalse(league.season.is_active)
+        self.assertFalse(league.season.has_data)
+
+    def test_live_season_still_takes_new_leagues_directly(self):
+        self.dormant.allows_new_leagues = True
+        self.dormant.save(update_fields=['allows_new_leagues'])
+        r = self.client.post('/api/v1/leagues/', {'name': 'This Year'}, format='json')
+        self.assertEqual(r.status_code, 201, r.content)
+        league = League.objects.get(name='This Year')
+        self.assertEqual(league.season.season_number, 49)
+        self.assertIs(r.data['season_has_data'], True)
+        self.assertFalse(Season.objects.filter(season_number=50).exists())
+
+    def test_second_league_reuses_the_same_placeholder_season(self):
+        first = self._preseason_league()
+        r = self.client.post('/api/v1/leagues/', {'name': 'Another'}, format='json')
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(League.objects.get(name='Another').season_id, first.season_id)
+        self.assertEqual(Season.objects.filter(season_number=50).count(), 1)
+
+    # ── Draft stays shut ─────────────────────────────────────────────────────
+
+    def test_draft_is_closed_without_season_data(self):
+        league = self._preseason_league()
+        self.assertFalse(is_draft_open(league))
+
+    def test_force_open_and_test_flag_cannot_open_a_dataless_draft(self):
+        league = self._preseason_league()
+        league.draft_force_open = True
+        league.is_test = True
+        league.save(update_fields=['draft_force_open', 'is_test'])
+        self.assertFalse(is_draft_open(league))
+
+    def test_draft_window_cannot_be_opened_without_season_data(self):
+        league = self._preseason_league()
+        r = self.client.patch(
+            f'/api/v1/leagues/{league.slug}/draft-window/',
+            {'draft_force_open': True}, format='json',
+        )
+        self.assertEqual(r.status_code, 400)
+        league.refresh_from_db()
+        self.assertFalse(league.draft_force_open)
+
+    def test_draft_submission_rejected_without_season_data(self):
+        league = self._preseason_league()
+        r = self.client.put(
+            f'/api/v1/leagues/{league.slug}/draft/',
+            {'castaway_ids': ['US4901']}, format='json',
+        )
+        self.assertEqual(r.status_code, 403)
+
+    def test_draft_opens_once_the_cast_lands(self):
+        league = self._preseason_league()
+        Castaway.objects.create(castaway_id='US5001', season=league.season, name='New Castaway')
+        league.refresh_from_db()
+        self.assertTrue(is_draft_open(league))
+        r = self.client.get(f'/api/v1/leagues/{league.slug}/')
+        self.assertIs(r.data['season_has_data'], True)
+        self.assertIs(r.data['draft_open'], True)
+
+    # ── What the owner can still do ──────────────────────────────────────────
+
+    def test_buy_in_can_be_set_before_the_season_starts(self):
+        league = self._preseason_league()
+        r = self.client.patch(
+            f'/api/v1/leagues/{league.slug}/',
+            {'buy_in_amount': '25.00', 'venmo_handle': '@me',
+             'payout_first': 60, 'payout_second': 30, 'payout_third': 10},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        league.refresh_from_db()
+        self.assertEqual(str(league.buy_in_amount), '25.00')
+        self.assertEqual(league.payout_first, 60)
+
+    def test_draft_settings_rejected_on_the_league_endpoint(self):
+        league = self._preseason_league()
+        r = self.client.patch(
+            f'/api/v1/leagues/{league.slug}/', {'draft_force_open': True}, format='json',
+        )
+        self.assertEqual(r.status_code, 400)
+        league.refresh_from_db()
+        self.assertFalse(league.draft_force_open)
+
+    def test_players_can_join_by_invite_code_before_the_season_starts(self):
+        league = self._preseason_league()
+        joiner = make_user(31)
+        self.client.force_authenticate(user=joiner)
+        r = self.client.post(
+            f'/api/v1/leagues/{league.slug}/join/',
+            {'invite_code': league.invite_code}, format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(Membership.objects.filter(league=league, user=joiner).exists())

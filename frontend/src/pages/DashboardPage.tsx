@@ -1,13 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { League, useMyLeagues, useCreateLeague, useJoinLeague } from '../api/leagues'
-import { useActiveSeason } from '../api/info'
 import { useAuth } from '../hooks/useAuth'
 export default function DashboardPage() {
   const { user } = useAuth()
   const { data: leagues, isLoading } = useMyLeagues(user?.id)
-  const { data: activeSeasonData } = useActiveSeason()
-  const canCreateLeague = activeSeasonData?.season?.allows_new_leagues ?? false
   const createLeague = useCreateLeague()
   const joinLeague = useJoinLeague()
 
@@ -52,18 +49,14 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">My Leagues</h1>
         <div className="flex gap-3">
-          {canCreateLeague && (
-            <button onClick={() => setShowJoin(true)} className="btn-secondary">Join League</button>
-          )}
-          {canCreateLeague && (
-            <button onClick={() => setShowCreate(true)} className="btn-primary">+ New League</button>
-          )}
+          <button onClick={() => setShowJoin(true)} className="btn-secondary">Join League</button>
+          <button onClick={() => setShowCreate(true)} className="btn-primary">+ New League</button>
         </div>
       </div>
 
       {error && <p className="text-red-500 mb-4">{error}</p>}
 
-      {canCreateLeague && showCreate && (
+      {showCreate && (
         <form onSubmit={handleCreate} className="card mb-6 flex gap-3 items-end">
           <div className="flex-1">
             <label className="label">League Name</label>
@@ -74,7 +67,7 @@ export default function DashboardPage() {
         </form>
       )}
 
-      {canCreateLeague && showJoin && (
+      {showJoin && (
         <form onSubmit={handleJoin} className="card mb-6 flex gap-3 items-end">
           <div className="flex-1">
             <label className="label">Invite Code</label>

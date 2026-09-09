@@ -458,7 +458,18 @@ export default function LeaguePage() {
         </div>
       )}
 
-      {isOwner && league && (
+      {isOwner && league && !league.season_has_data && (
+        <div className="card mb-6">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Draft Settings</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Season {league.season_number} hasn't been announced yet, so there is no cast to draft and
+            the draft can't be opened. You can still invite players with the code above and set up
+            the buy-in — the draft controls appear here once the cast is published.
+          </p>
+        </div>
+      )}
+
+      {isOwner && league && league.season_has_data && (
         <div className="card mb-6">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Draft Settings</h2>
           <div className="flex flex-wrap items-start gap-4">

@@ -31,6 +31,18 @@ class Season(models.Model):
     def __str__(self):
         return f'S{self.season_number}: {self.name}'
 
+    @property
+    def has_data(self) -> bool:
+        """
+        True once castaways for this season have been synced from the survivoR
+        dataset.  A season row can exist before its data does — leagues are
+        prepared for the upcoming season during the between-seasons gap — and
+        nothing that needs a cast (above all, the draft) may run until this is True.
+        """
+        if not hasattr(self, '_has_data'):
+            self._has_data = self.castaways.exists()
+        return self._has_data
+
 
 class Castaway(models.Model):
     castaway_id = models.CharField(max_length=20, unique=True)
