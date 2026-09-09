@@ -52,7 +52,13 @@ class GoogleLoginView(APIView):
                 'avatar_url': avatar_url,
             },
         )
-        user.set_unusable_password()
+        # Google-auth accounts never carry a local password.  set_unusable_password()
+        # only mutates the in-memory instance, so it has to be saved to stick —
+        # otherwise the row keeps the empty password get_or_create wrote, which
+        # is_password_usable() reports as usable.
+        if user.has_usable_password():
+            user.set_unusable_password()
+            user.save(update_fields=['password'])
 
         # Update profile fields on each login
         changed = False
