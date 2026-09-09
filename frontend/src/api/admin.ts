@@ -52,6 +52,18 @@ export interface RescoreResult {
   rosters_updated: number
 }
 
+export interface RefreshSeasonDataResult {
+  detail: string
+  season_number: number
+  castaways: number
+  episodes: number
+  next_season_number: number
+  next_season_castaways: number
+  next_detected: boolean
+  newly_detected: boolean
+  next_detected_at: string | null
+}
+
 export interface ScoreUnscoredResult {
   episodes_attempted: number
   episodes_scored: number
@@ -167,6 +179,19 @@ export function useUpdateCastawayAlias() {
       api.patch(`/admin/castaways/${castaway_id}/alias/`, { alias, refetch_image }).then(r => r.data as AdminCastaway),
     onSuccess: () => {
       // Invalidate both admin castaway list and the public season castaways endpoint
+      qc.invalidateQueries({ queryKey: ['admin-castaways'] })
+      qc.invalidateQueries({ queryKey: ['season-castaways'] })
+    },
+  })
+}
+
+export function useRefreshSeasonData() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      api.post('/admin/refresh-season-data/').then(r => r.data as RefreshSeasonDataResult),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['active-season'] })
       qc.invalidateQueries({ queryKey: ['admin-castaways'] })
       qc.invalidateQueries({ queryKey: ['season-castaways'] })
     },

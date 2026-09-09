@@ -134,7 +134,12 @@ CELERY_ENABLE_UTC = True
 # After that, the active season is tracked in the database automatically.
 ACTIVE_SEASON = int(os.environ.get('ACTIVE_SEASON', 50))
 
+# Under Docker the file is bind-mounted to /app/scoring_config.json, which is
+# BASE_DIR.  In a plain checkout (CI, local dev outside the container) it lives at
+# the repository root, one level above backend/.
 SCORING_CONFIG_PATH = BASE_DIR / 'scoring_config.json'
+if not SCORING_CONFIG_PATH.exists():
+    SCORING_CONFIG_PATH = BASE_DIR.parent / 'scoring_config.json'
 
 SUPERADMIN_EMAILS = os.environ.get('SUPERADMIN_EMAILS', 'patlaff728@gmail.com').split(',')
 

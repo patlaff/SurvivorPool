@@ -89,8 +89,19 @@ class DraftAPITest(TestCase):
         r = self.client.put(self._draft_url(), {'castaway_ids': ids}, format='json')
         self.assertEqual(r.status_code, 403)
 
-    def test_fewer_than_5_rejected(self):
+    def test_partial_draft_allowed(self):
+        # Picks are not required to be a full five — a partial roster is valid.
         ids = [c.castaway_id for c in self.castaways[:3]]
+        r = self.client.put(self._draft_url(), {'castaway_ids': ids}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(RosterSlot.objects.count(), 3)
+
+    def test_empty_draft_rejected(self):
+        r = self.client.put(self._draft_url(), {'castaway_ids': []}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_more_than_5_rejected(self):
+        ids = [c.castaway_id for c in self.castaways[:6]]
         r = self.client.put(self._draft_url(), {'castaway_ids': ids}, format='json')
         self.assertEqual(r.status_code, 400)
 
@@ -156,17 +167,22 @@ class PerkAPITest(TestCase):
         r = self.client.get(url)
         self.assertEqual(r.status_code, 200)
 
-    def test_cross_user_swap_rejected(self):
+    def test_swap_onto_castaway_held_by_another_player_allowed(self):
+        # Picks are not exclusive: two players in a league may hold the same castaway.
         other = make_user(22)
         Membership.objects.create(league=self.league, user=other)
         other_roster = Roster.objects.create(league=self.league, user=other)
-        for i, c in enumerate(self.castaways[:5], 1):
-            RosterSlot.objects.get_or_create(roster=other_roster, castaway=c, defaults={'slot_number': i + 10})
+        for i, c in enumerate(self.castaways[2:7], 1):
+            RosterSlot.objects.create(roster=other_roster, castaway=c, slot_number=i)
+        Perk.objects.create(roster=other_roster, perk_type=Perk.SWAP)
+
         self.client.force_authenticate(user=other)
         url = f'/api/v1/leagues/{self.league.slug}/roster/swap/'
         r = self.client.post(url, {
-            'out_id': self.castaways[0].castaway_id,
-            'in_id': self.castaways[6].castaway_id,
+            'out_id': self.castaways[6].castaway_id,  # held only by `other`
+            'in_id': self.castaways[0].castaway_id,   # already on self.user's roster
         }, format='json')
-        # Should fail — castaway already on another roster
-        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(
+            RosterSlot.objects.filter(roster=other_roster, castaway=self.castaways[0]).exists()
+        )

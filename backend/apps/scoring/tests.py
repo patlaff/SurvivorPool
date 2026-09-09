@@ -61,7 +61,8 @@ class FindIdolDetectorTest(TestCase):
 class IndividualImmunityDetectorTest(TestCase):
     def test_detects_immunity_win(self):
         cr = pd.DataFrame([
-            {'castaway_id': 'US5002', 'challenge_type': 'immunity', 'result': 'Win', 'episode': 4}
+            {'castaway_id': 'US5002', 'outcome_type': 'Individual', 'challenge_type': 'Immunity',
+             'result': 'Win', 'episode': 4}
         ])
         results = detect_individual_immunity(_tables(challenge_results=cr))
         self.assertEqual(len(results), 1)
@@ -71,9 +72,9 @@ class IndividualImmunityDetectorTest(TestCase):
 class SurviveTribalDetectorTest(TestCase):
     def test_detects_survivor(self):
         votes = pd.DataFrame([
-            {'castaway_id': 'US5001', 'vote': 'US5003', 'episode': 2, 'voted_out': False},
-            {'castaway_id': 'US5002', 'vote': 'US5003', 'episode': 2, 'voted_out': False},
-            {'castaway_id': 'US5003', 'vote': 'US5001', 'episode': 2, 'voted_out': True},
+            {'castaway_id': 'US5001', 'vote': 'US5003', 'episode': 2, 'voted_out_id': 'US5003'},
+            {'castaway_id': 'US5002', 'vote': 'US5003', 'episode': 2, 'voted_out_id': 'US5003'},
+            {'castaway_id': 'US5003', 'vote': 'US5001', 'episode': 2, 'voted_out_id': 'US5003'},
         ])
         results = detect_survive_tribal(_tables(vote_history=votes))
         ids = [r[0] for r in results]
